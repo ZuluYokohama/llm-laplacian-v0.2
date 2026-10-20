@@ -1,0 +1,342 @@
+{
+  "bulk_mpn": {
+    "channels": 32,
+    "completed_side": 2048,
+    "layers": 15,
+    "peak_vram_mib": 9892.0,
+    "steps": [
+      {
+        "seconds": 1.717661400034558,
+        "side": 32,
+        "vram_mib": 284.0
+      },
+      {
+        "seconds": 0.18855590000748634,
+        "side": 64,
+        "vram_mib": 292.0
+      },
+      {
+        "seconds": 0.07811490003950894,
+        "side": 96,
+        "vram_mib": 306.0
+      },
+      {
+        "seconds": 0.07813979999627918,
+        "side": 128,
+        "vram_mib": 324.0
+      },
+      {
+        "seconds": 0.09230930003104731,
+        "side": 192,
+        "vram_mib": 384.0
+      },
+      {
+        "seconds": 0.07881899998756126,
+        "side": 256,
+        "vram_mib": 484.0
+      },
+      {
+        "seconds": 0.07830419996753335,
+        "side": 384,
+        "vram_mib": 646.0
+      },
+      {
+        "seconds": 0.07739650004077703,
+        "side": 512,
+        "vram_mib": 942.0
+      },
+      {
+        "seconds": 0.09006580000277609,
+        "side": 768,
+        "vram_mib": 1756.0
+      },
+      {
+        "seconds": 0.09515900001861155,
+        "side": 1024,
+        "vram_mib": 2916.0
+      },
+      {
+        "seconds": 0.09480700001586229,
+        "side": 1280,
+        "vram_mib": 4412.0
+      },
+      {
+        "seconds": 0.1095845999661833,
+        "side": 1536,
+        "vram_mib": 6244.0
+      },
+      {
+        "seconds": 0.1246720000053756,
+        "side": 1792,
+        "vram_mib": 8412.0
+      },
+      {
+        "seconds": 0.12601180002093315,
+        "side": 2048,
+        "vram_mib": 9892.0
+      }
+    ],
+    "trip_reason": "estimate_before_alloc",
+    "tripped": true
+  },
+  "complete": true,
+  "device": {
+    "capability": [
+      12,
+      0
+    ],
+    "device_index": 0,
+    "device_name": "NVIDIA GeForce RTX 5070",
+    "l2_cache_bytes": 50331648,
+    "memory_total_mib": 12199.4375,
+    "memory_used_mib": 21.0
+  },
+  "experiment": "B",
+  "grid_2561": {
+    "max_dense_gap": null,
+    "max_solver_gap": 0.47897268786416447,
+    "pairs": [
+      {
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            2560
+          ]
+        ],
+        "full": 8.58502056973233,
+        "full_converged": false,
+        "full_iterations": 120,
+        "full_residual": 0.08580044484771862,
+        "gap": 0.4683343104047939,
+        "pair": "top_corners",
+        "schur": 8.116686259327537,
+        "schur_converged": false,
+        "schur_iterations": 120,
+        "schur_residual": 0.006744200292285865
+      },
+      {
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            2560,
+            2560
+          ]
+        ],
+        "full": 8.596313130314776,
+        "full_converged": false,
+        "full_iterations": 120,
+        "full_residual": 0.08637264513612154,
+        "gap": 0.47897268786416447,
+        "pair": "diagonal_corners",
+        "schur": 8.117340442450612,
+        "schur_converged": false,
+        "schur_iterations": 120,
+        "schur_residual": 0.006766907664497724
+      },
+      {
+        "endpoints": [
+          [
+            0,
+            1280
+          ],
+          [
+            2560,
+            1280
+          ]
+        ],
+        "full": 4.609496329159704,
+        "full_converged": false,
+        "full_iterations": 120,
+        "full_residual": 0.05947868928124148,
+        "gap": 0.38949840033706096,
+        "pair": "opposite_midpoints",
+        "schur": 4.219997928822643,
+        "schur_converged": false,
+        "schur_iterations": 120,
+        "schur_residual": 0.0010875976493676472
+      }
+    ],
+    "peak_vram_mib": 1488.0,
+    "seconds": 660.5216992000351,
+    "side": 2561,
+    "solver": "pcg-vcycle-jacobi"
+  },
+  "grid_513": {
+    "max_dense_gap": null,
+    "max_solver_gap": 0.17645351272792542,
+    "pairs": [
+      {
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            512
+          ]
+        ],
+        "full": 7.754056964096991,
+        "full_converged": false,
+        "full_iterations": 100,
+        "full_residual": 0.03286462589021008,
+        "gap": 0.054695797365514665,
+        "pair": "top_corners",
+        "schur": 7.699361166731476,
+        "schur_converged": false,
+        "schur_iterations": 100,
+        "schur_residual": 0.010166601073910268
+      },
+      {
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            512,
+            512
+          ]
+        ],
+        "full": 7.990640132853999,
+        "full_converged": false,
+        "full_iterations": 100,
+        "full_residual": 0.033016607603293516,
+        "gap": 0.17645351272792542,
+        "pair": "diagonal_corners",
+        "schur": 7.8141866201260735,
+        "schur_converged": false,
+        "schur_iterations": 100,
+        "schur_residual": 0.005951509630162173
+      },
+      {
+        "endpoints": [
+          [
+            0,
+            256
+          ],
+          [
+            512,
+            256
+          ]
+        ],
+        "full": 4.3213039679731695,
+        "full_converged": false,
+        "full_iterations": 100,
+        "full_residual": 0.023108435908774344,
+        "gap": 0.15543738805854002,
+        "pair": "opposite_midpoints",
+        "schur": 4.1658665799146295,
+        "schur_converged": false,
+        "schur_iterations": 100,
+        "schur_residual": 0.0017709387775097956
+      }
+    ],
+    "peak_vram_mib": 326.0,
+    "seconds": 221.34627089998685,
+    "side": 513,
+    "solver": "pcg-vcycle-jacobi"
+  },
+  "host_gpu": true,
+  "identity": {
+    "max_dense_gap": 1.0138078376797921e-08,
+    "max_solver_gap": 2.1711841657889863e-08,
+    "pairs": [
+      {
+        "dense": 3.463587937288104,
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            16
+          ]
+        ],
+        "full": 3.4635879347902936,
+        "full_converged": true,
+        "full_gap": 2.497810402957157e-09,
+        "full_iterations": 28,
+        "full_residual": 1.368310471819243e-08,
+        "gap": 1.297314788928361e-08,
+        "pair": "top_corners",
+        "schur": 3.4635879218171457,
+        "schur_converged": true,
+        "schur_gap": 1.5470958292240766e-08,
+        "schur_iterations": 24,
+        "schur_residual": 1.8246679072375115e-10
+      },
+      {
+        "dense": 3.685592463430755,
+        "endpoints": [
+          [
+            0,
+            0
+          ],
+          [
+            16,
+            16
+          ]
+        ],
+        "full": 3.6855924668452125,
+        "full_converged": true,
+        "full_gap": 3.41445760554393e-09,
+        "full_iterations": 27,
+        "full_residual": 1.2172023213152849e-08,
+        "gap": 2.1711841657889863e-08,
+        "pair": "diagonal_corners",
+        "schur": 3.685592445133371,
+        "schur_converged": true,
+        "schur_gap": 1.8297384052345933e-08,
+        "schur_iterations": 16,
+        "schur_residual": 5.19670922407613e-10
+      },
+      {
+        "dense": 2.159208016949872,
+        "endpoints": [
+          [
+            0,
+            8
+          ],
+          [
+            16,
+            8
+          ]
+        ],
+        "full": 2.159208006811794,
+        "full_converged": true,
+        "full_gap": 1.0138078376797921e-08,
+        "full_iterations": 26,
+        "full_residual": 1.2343304267027986e-08,
+        "gap": 1.1222354157069958e-08,
+        "pair": "opposite_midpoints",
+        "schur": 2.159208018034148,
+        "schur_converged": true,
+        "schur_gap": 1.084275780272037e-09,
+        "schur_iterations": 16,
+        "schur_residual": 6.800353773208318e-10
+      }
+    ],
+    "peak_vram_mib": 278.0,
+    "seconds": 19.641428300004918,
+    "side": 17,
+    "solver": "pcg-vcycle-jacobi"
+  },
+  "identity_gate": {
+    "gap": 1.297314788928361e-08,
+    "kind": "resistance",
+    "pass": true
+  },
+  "identity_max_dense_gap": 1.8297384052345933e-08,
+  "identity_side": 17,
+  "literature_target_note": "Source document states 10.9 ms to 220 ms. This file stores measured seconds only.",
+  "solver": "pcg-vcycle-jacobi"
+}

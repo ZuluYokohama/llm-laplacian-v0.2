@@ -1,0 +1,16 @@
+{
+  "device_index": 0,
+  "device_name": "NVIDIA GeForce RTX 5070",
+  "capability": [
+    12,
+    0
+  ],
+  "torch": "2.11.0+cu128",
+  "matmul_ok": true,
+  "allocated_bytes": 16908288,
+  "dtype": "float32",
+  "shape": [
+    1024,
+    1024
+  ]
+}

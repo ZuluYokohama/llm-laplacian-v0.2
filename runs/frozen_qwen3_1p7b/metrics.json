@@ -1,0 +1,10 @@
+{
+  "complete": false,
+  "device_name": "NVIDIA GeForce GTX 1660 Ti",
+  "error": "free memory below the weight plus reserve",
+  "free_mib": 5531.0,
+  "host_gpu": true,
+  "literature_target": "source PDF validation loss 1.466 and AutoInterp 0.866 were not measured",
+  "run_id": "frozen_qwen3_1p7b",
+  "weight_bytes": 3441185608
+}

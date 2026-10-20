@@ -1,0 +1,246 @@
+﻿2026-10-19T22:48:37Z WSL initiate: C:\WINDOWS\System32\wsl.exe --distribution JovinHarness --exec docker version
+2026-10-19T22:48:42Z wsl-docker: Client: Docker Engine - Community
+2026-10-19T22:48:42Z wsl-docker:  Version:           29.9.0
+2026-10-19T22:48:42Z wsl-docker:  API version:       1.56
+2026-10-19T22:48:42Z wsl-docker:  Go version:        go1.26.9
+2026-10-19T22:48:42Z wsl-docker:  Git commit:        f415da8
+2026-10-19T22:48:42Z wsl-docker:  Built:             Thu Oct  8 20:38:42 2026
+2026-10-19T22:48:42Z wsl-docker:  OS/Arch:           linux/amd64
+2026-10-19T22:48:42Z wsl-docker:  Context:           default
+2026-10-19T22:48:42Z wsl-docker: 
+2026-10-19T22:48:42Z wsl-docker: Server: Docker Engine - Community
+2026-10-19T22:48:42Z wsl-docker:  Engine:
+2026-10-19T22:48:42Z wsl-docker:   Version:          29.9.0
+2026-10-19T22:48:42Z wsl-docker:   API version:      1.56 (minimum version 1.40)
+2026-10-19T22:48:42Z wsl-docker:   Go version:       go1.26.9
+2026-10-19T22:48:42Z wsl-docker:   Git commit:       a5b58c9
+2026-10-19T22:48:42Z wsl-docker:   Built:            Thu Oct  8 20:38:42 2026
+2026-10-19T22:48:42Z wsl-docker:   OS/Arch:          linux/amd64
+2026-10-19T22:48:42Z wsl-docker:   Experimental:     false
+2026-10-19T22:48:42Z wsl-docker:  containerd:
+2026-10-19T22:48:42Z wsl-docker:   Version:          v2.4.1
+2026-10-19T22:48:42Z wsl-docker:   GitCommit:        f2551031d7276a770f65f98c9b52e57e7dad07e8
+2026-10-19T22:48:42Z wsl-docker:  runc:
+2026-10-19T22:48:42Z wsl-docker:   Version:          1.5.2
+2026-10-19T22:48:42Z wsl-docker:   GitCommit:        v1.5.2-0-g29dd3dc2
+2026-10-19T22:48:42Z wsl-docker:  docker-init:
+2026-10-19T22:48:42Z wsl-docker:   Version:          0.19.0
+2026-10-19T22:48:42Z wsl-docker:   GitCommit:        de40ad0
+2026-10-19T22:48:42Z WSL initiate: D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe doctor
+2026-10-19T22:48:43Z jovin-doctor: {
+2026-10-19T22:48:43Z jovin-doctor:   "runtime": "wsl:JovinHarness",
+2026-10-19T22:48:43Z jovin-doctor:   "command": [
+2026-10-19T22:48:43Z jovin-doctor:     "C:\\WINDOWS\\System32\\wsl.exe",
+2026-10-19T22:48:43Z jovin-doctor:     "--distribution",
+2026-10-19T22:48:43Z jovin-doctor:     "JovinHarness",
+2026-10-19T22:48:43Z jovin-doctor:     "--exec",
+2026-10-19T22:48:43Z jovin-doctor:     "docker"
+2026-10-19T22:48:43Z jovin-doctor:   ],
+2026-10-19T22:48:43Z jovin-doctor:   "image": "sha256:e82a600c84d4ce9c238d4c6fa8fbba4f5978873ea5fd3a1c8f3f570cb4f6f45e",
+2026-10-19T22:48:43Z jovin-doctor:   "packaged_runner_sha256": "8a847c3e8ac4d31afd86fe9b415e077d4be2ef3ede7cbf28696b6010f58ddfb2",
+2026-10-19T22:48:43Z jovin-doctor:   "limits": {
+2026-10-19T22:48:43Z jovin-doctor:     "timeout_s": 30,
+2026-10-19T22:48:43Z jovin-doctor:     "memory_bytes": 536870912,
+2026-10-19T22:48:43Z jovin-doctor:     "pids": 64,
+2026-10-19T22:48:43Z jovin-doctor:     "cpus": 1.0,
+2026-10-19T22:48:43Z jovin-doctor:     "tmpfs_bytes": 16777216,
+2026-10-19T22:48:43Z jovin-doctor:     "nofile": 64,
+2026-10-19T22:48:43Z jovin-doctor:     "fsize_bytes": 16777216,
+2026-10-19T22:48:43Z jovin-doctor:     "max_input_bytes": 262144,
+2026-10-19T22:48:43Z jovin-doctor:     "max_output_bytes": 65536
+2026-10-19T22:48:43Z jovin-doctor:   },
+2026-10-19T22:48:43Z jovin-doctor:   "ready": true,
+2026-10-19T22:48:43Z jovin-doctor:   "problems": [],
+2026-10-19T22:48:43Z jovin-doctor:   "engine": {
+2026-10-19T22:48:43Z jovin-doctor:     "server_version": "29.9.0",
+2026-10-19T22:48:43Z jovin-doctor:     "engine_id": "e95ecb10-fdc8-4759-b4ba-7b8238391773",
+2026-10-19T22:48:43Z jovin-doctor:     "os_type": "linux",
+2026-10-19T22:48:43Z jovin-doctor:     "cgroup_version": "2",
+2026-10-19T22:48:43Z jovin-doctor:     "security_options": [
+2026-10-19T22:48:43Z jovin-doctor:       "name=seccomp,profile=builtin",
+2026-10-19T22:48:43Z jovin-doctor:       "name=cgroupns"
+2026-10-19T22:48:43Z jovin-doctor:     ],
+2026-10-19T22:48:43Z jovin-doctor:     "docker_host": null,
+2026-10-19T22:48:43Z jovin-doctor:     "docker_host_local": true
+2026-10-19T22:48:43Z jovin-doctor:   },
+2026-10-19T22:48:43Z jovin-doctor:   "image_info": {
+2026-10-19T22:48:43Z jovin-doctor:     "id": "sha256:e82a600c84d4ce9c238d4c6fa8fbba4f5978873ea5fd3a1c8f3f570cb4f6f45e",
+2026-10-19T22:48:43Z jovin-doctor:     "runner_sha256": "8a847c3e8ac4d31afd86fe9b415e077d4be2ef3ede7cbf28696b6010f58ddfb2",
+2026-10-19T22:48:43Z jovin-doctor:     "harness_version": "0.2.0.dev0",
+2026-10-19T22:48:43Z jovin-doctor:     "architecture": "amd64"
+2026-10-19T22:48:43Z jovin-doctor:   },
+2026-10-19T22:48:43Z jovin-doctor:   "receipts": {
+2026-10-19T22:48:43Z jovin-doctor:     "count": 11,
+2026-10-19T22:48:43Z jovin-doctor:     "head_sha256": "8b9db7504d4cf2c1632e996ef52c43515aafed074f6ccea6efdb49bf6044cb90",
+2026-10-19T22:48:43Z jovin-doctor:     "head_id": "20261019T221614Z-c721b09d3757"
+2026-10-19T22:48:43Z jovin-doctor:   },
+2026-10-19T22:48:43Z jovin-doctor:   "harness_version": "0.2.0.dev0",
+2026-10-19T22:48:43Z jovin-doctor:   "max_concurrency": 2
+2026-10-19T22:48:43Z jovin-doctor: }
+2026-10-19T22:48:43Z WSL initiate verify: boundary isolation=process timeout=30
+2026-10-19T22:48:45Z WSL verify returned: boundary exit=0
+2026-10-19T22:48:45Z passed: boundary receipt=20261019T224844Z-d5456307a695
+2026-10-19T22:48:45Z WSL initiate verify: laplacian isolation=process timeout=30
+2026-10-19T22:48:46Z WSL verify returned: laplacian exit=0
+2026-10-19T22:48:46Z passed: laplacian receipt=20261019T224846Z-6bc5116a7990
+2026-10-19T22:48:46Z WSL initiate verify: manifold isolation=process timeout=30
+2026-10-19T22:48:48Z WSL verify returned: manifold exit=0
+2026-10-19T22:48:48Z passed: manifold receipt=20261019T224848Z-cb463b16138f
+2026-10-19T22:48:48Z WSL initiate verify: fractional isolation=process timeout=30
+2026-10-19T22:48:50Z WSL verify returned: fractional exit=0
+2026-10-19T22:48:50Z passed: fractional receipt=20261019T224850Z-22957f221d11
+2026-10-19T22:48:50Z WSL initiate verify: hypergraph isolation=process timeout=30
+2026-10-19T22:48:52Z WSL verify returned: hypergraph exit=0
+2026-10-19T22:48:52Z passed: hypergraph receipt=20261019T224852Z-c527ba60b858
+2026-10-19T22:48:52Z WSL initiate verify: resistance isolation=process timeout=30
+2026-10-19T22:48:54Z WSL verify returned: resistance exit=0
+2026-10-19T22:48:54Z passed: resistance receipt=20261019T224853Z-6433ce888873
+2026-10-19T22:48:54Z WSL initiate verify: fiedler isolation=process timeout=30
+2026-10-19T22:48:55Z WSL verify returned: fiedler exit=0
+2026-10-19T22:48:55Z passed: fiedler receipt=20261019T224855Z-4f7ada5ba631
+2026-10-19T22:48:55Z WSL initiate verify: sparsify isolation=process timeout=30
+2026-10-19T22:48:57Z WSL verify returned: sparsify exit=0
+2026-10-19T22:48:57Z passed: sparsify receipt=20261019T224857Z-19b16564ea72
+2026-10-19T22:48:57Z WSL initiate verify: suzuki isolation=process timeout=30
+2026-10-19T22:48:59Z WSL verify returned: suzuki exit=0
+2026-10-19T22:48:59Z passed: suzuki receipt=20261019T224859Z-15e3415d9db2
+2026-10-19T22:48:59Z WSL initiate verify: schedule isolation=process timeout=30
+2026-10-19T22:49:01Z WSL verify returned: schedule exit=0
+2026-10-19T22:49:01Z passed: schedule receipt=20261019T224901Z-a2fc1c4dfe9f
+2026-10-19T22:49:01Z WSL initiate verify: composite isolation=process timeout=30
+2026-10-19T22:49:02Z WSL verify returned: composite exit=0
+2026-10-19T22:49:02Z passed: composite receipt=20261019T224902Z-c93a606af88f
+2026-10-19T22:49:02Z WSL initiate verify: symplectic isolation=process timeout=30
+2026-10-19T22:49:04Z WSL verify returned: symplectic exit=0
+2026-10-19T22:49:04Z passed: symplectic receipt=20261019T224904Z-55d71638cd7c
+2026-10-19T22:49:04Z WSL initiate: D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe receipts verify
+2026-10-19T22:49:04Z jovin-chain: {
+2026-10-19T22:49:04Z jovin-chain:   "valid": true,
+2026-10-19T22:49:04Z jovin-chain:   "count": 23,
+2026-10-19T22:49:04Z jovin-chain:   "head_sha256": "7f4daa65922a4c23573776b2f427220a5b5d359988db49bf7e339fa105da76f7",
+2026-10-19T22:49:04Z jovin-chain:   "problems": []
+2026-10-19T22:49:04Z jovin-chain: }
+2026-10-19T22:49:04Z DONE: reference operators passed process isolation
+2026-10-19T23:40:09Z WSL initiate: C:\WINDOWS\System32\wsl.exe --distribution JovinHarness --exec docker version
+2026-10-19T23:40:09Z wsl-docker: Client: Docker Engine - Community
+2026-10-19T23:40:09Z wsl-docker:  Version:           29.9.0
+2026-10-19T23:40:09Z wsl-docker:  API version:       1.56
+2026-10-19T23:40:09Z wsl-docker:  Go version:        go1.26.9
+2026-10-19T23:40:09Z wsl-docker:  Git commit:        f415da8
+2026-10-19T23:40:09Z wsl-docker:  Built:             Thu Oct  8 20:38:42 2026
+2026-10-19T23:40:09Z wsl-docker:  OS/Arch:           linux/amd64
+2026-10-19T23:40:09Z wsl-docker:  Context:           default
+2026-10-19T23:40:09Z wsl-docker: 
+2026-10-19T23:40:09Z wsl-docker: Server: Docker Engine - Community
+2026-10-19T23:40:09Z wsl-docker:  Engine:
+2026-10-19T23:40:09Z wsl-docker:   Version:          29.9.0
+2026-10-19T23:40:09Z wsl-docker:   API version:      1.56 (minimum version 1.40)
+2026-10-19T23:40:09Z wsl-docker:   Go version:       go1.26.9
+2026-10-19T23:40:09Z wsl-docker:   Git commit:       a5b58c9
+2026-10-19T23:40:09Z wsl-docker:   Built:            Thu Oct  8 20:38:42 2026
+2026-10-19T23:40:09Z wsl-docker:   OS/Arch:          linux/amd64
+2026-10-19T23:40:09Z wsl-docker:   Experimental:     false
+2026-10-19T23:40:09Z wsl-docker:  containerd:
+2026-10-19T23:40:09Z wsl-docker:   Version:          v2.4.1
+2026-10-19T23:40:09Z wsl-docker:   GitCommit:        f2551031d7276a770f65f98c9b52e57e7dad07e8
+2026-10-19T23:40:09Z wsl-docker:  runc:
+2026-10-19T23:40:09Z wsl-docker:   Version:          1.5.2
+2026-10-19T23:40:09Z wsl-docker:   GitCommit:        v1.5.2-0-g29dd3dc2
+2026-10-19T23:40:09Z wsl-docker:  docker-init:
+2026-10-19T23:40:09Z wsl-docker:   Version:          0.19.0
+2026-10-19T23:40:09Z wsl-docker:   GitCommit:        de40ad0
+2026-10-19T23:40:09Z WSL initiate: D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe doctor
+2026-10-19T23:40:10Z jovin-doctor: {
+2026-10-19T23:40:10Z jovin-doctor:   "runtime": "wsl:JovinHarness",
+2026-10-19T23:40:10Z jovin-doctor:   "command": [
+2026-10-19T23:40:10Z jovin-doctor:     "C:\\WINDOWS\\System32\\wsl.exe",
+2026-10-19T23:40:10Z jovin-doctor:     "--distribution",
+2026-10-19T23:40:10Z jovin-doctor:     "JovinHarness",
+2026-10-19T23:40:10Z jovin-doctor:     "--exec",
+2026-10-19T23:40:10Z jovin-doctor:     "docker"
+2026-10-19T23:40:10Z jovin-doctor:   ],
+2026-10-19T23:40:10Z jovin-doctor:   "image": "sha256:e82a600c84d4ce9c238d4c6fa8fbba4f5978873ea5fd3a1c8f3f570cb4f6f45e",
+2026-10-19T23:40:10Z jovin-doctor:   "packaged_runner_sha256": "8a847c3e8ac4d31afd86fe9b415e077d4be2ef3ede7cbf28696b6010f58ddfb2",
+2026-10-19T23:40:10Z jovin-doctor:   "limits": {
+2026-10-19T23:40:10Z jovin-doctor:     "timeout_s": 30,
+2026-10-19T23:40:10Z jovin-doctor:     "memory_bytes": 536870912,
+2026-10-19T23:40:10Z jovin-doctor:     "pids": 64,
+2026-10-19T23:40:10Z jovin-doctor:     "cpus": 1.0,
+2026-10-19T23:40:10Z jovin-doctor:     "tmpfs_bytes": 16777216,
+2026-10-19T23:40:10Z jovin-doctor:     "nofile": 64,
+2026-10-19T23:40:10Z jovin-doctor:     "fsize_bytes": 16777216,
+2026-10-19T23:40:10Z jovin-doctor:     "max_input_bytes": 262144,
+2026-10-19T23:40:10Z jovin-doctor:     "max_output_bytes": 65536
+2026-10-19T23:40:10Z jovin-doctor:   },
+2026-10-19T23:40:10Z jovin-doctor:   "ready": true,
+2026-10-19T23:40:10Z jovin-doctor:   "problems": [],
+2026-10-19T23:40:10Z jovin-doctor:   "engine": {
+2026-10-19T23:40:10Z jovin-doctor:     "server_version": "29.9.0",
+2026-10-19T23:40:10Z jovin-doctor:     "engine_id": "e95ecb10-fdc8-4759-b4ba-7b8238391773",
+2026-10-19T23:40:10Z jovin-doctor:     "os_type": "linux",
+2026-10-19T23:40:10Z jovin-doctor:     "cgroup_version": "2",
+2026-10-19T23:40:10Z jovin-doctor:     "security_options": [
+2026-10-19T23:40:10Z jovin-doctor:       "name=seccomp,profile=builtin",
+2026-10-19T23:40:10Z jovin-doctor:       "name=cgroupns"
+2026-10-19T23:40:10Z jovin-doctor:     ],
+2026-10-19T23:40:10Z jovin-doctor:     "docker_host": null,
+2026-10-19T23:40:10Z jovin-doctor:     "docker_host_local": true
+2026-10-19T23:40:10Z jovin-doctor:   },
+2026-10-19T23:40:10Z jovin-doctor:   "image_info": {
+2026-10-19T23:40:10Z jovin-doctor:     "id": "sha256:e82a600c84d4ce9c238d4c6fa8fbba4f5978873ea5fd3a1c8f3f570cb4f6f45e",
+2026-10-19T23:40:10Z jovin-doctor:     "runner_sha256": "8a847c3e8ac4d31afd86fe9b415e077d4be2ef3ede7cbf28696b6010f58ddfb2",
+2026-10-19T23:40:10Z jovin-doctor:     "harness_version": "0.2.0.dev0",
+2026-10-19T23:40:10Z jovin-doctor:     "architecture": "amd64"
+2026-10-19T23:40:10Z jovin-doctor:   },
+2026-10-19T23:40:10Z jovin-doctor:   "receipts": {
+2026-10-19T23:40:10Z jovin-doctor:     "count": 23,
+2026-10-19T23:40:10Z jovin-doctor:     "head_sha256": "7f4daa65922a4c23573776b2f427220a5b5d359988db49bf7e339fa105da76f7",
+2026-10-19T23:40:10Z jovin-doctor:     "head_id": "20261019T224904Z-55d71638cd7c"
+2026-10-19T23:40:10Z jovin-doctor:   },
+2026-10-19T23:40:10Z jovin-doctor:   "harness_version": "0.2.0.dev0",
+2026-10-19T23:40:10Z jovin-doctor:   "max_concurrency": 2
+2026-10-19T23:40:10Z jovin-doctor: }
+2026-10-19T23:40:10Z WSL initiate verify: boundary isolation=process timeout=30
+2026-10-19T23:40:12Z WSL verify returned: boundary exit=0
+2026-10-19T23:40:12Z passed: boundary receipt=20261019T234012Z-95cc6c81a7cd
+2026-10-19T23:40:12Z WSL initiate verify: laplacian isolation=process timeout=30
+2026-10-19T23:40:14Z WSL verify returned: laplacian exit=0
+2026-10-19T23:40:14Z passed: laplacian receipt=20261019T234014Z-8127be714c19
+2026-10-19T23:40:14Z WSL initiate verify: manifold isolation=process timeout=30
+2026-10-19T23:40:16Z WSL verify returned: manifold exit=0
+2026-10-19T23:40:16Z passed: manifold receipt=20261019T234016Z-0183ce54b2ad
+2026-10-19T23:40:16Z WSL initiate verify: fractional isolation=process timeout=30
+2026-10-19T23:40:17Z WSL verify returned: fractional exit=0
+2026-10-19T23:40:17Z passed: fractional receipt=20261019T234017Z-88d19eeba406
+2026-10-19T23:40:17Z WSL initiate verify: hypergraph isolation=process timeout=30
+2026-10-19T23:40:19Z WSL verify returned: hypergraph exit=0
+2026-10-19T23:40:19Z passed: hypergraph receipt=20261019T234019Z-f8dd1199aa12
+2026-10-19T23:40:19Z WSL initiate verify: resistance isolation=process timeout=30
+2026-10-19T23:40:21Z WSL verify returned: resistance exit=0
+2026-10-19T23:40:21Z passed: resistance receipt=20261019T234021Z-13e29b39e5d3
+2026-10-19T23:40:21Z WSL initiate verify: fiedler isolation=process timeout=30
+2026-10-19T23:40:23Z WSL verify returned: fiedler exit=0
+2026-10-19T23:40:23Z passed: fiedler receipt=20261019T234023Z-c3882f35631a
+2026-10-19T23:40:23Z WSL initiate verify: sparsify isolation=process timeout=30
+2026-10-19T23:40:24Z WSL verify returned: sparsify exit=0
+2026-10-19T23:40:24Z passed: sparsify receipt=20261019T234024Z-8ea02186d65c
+2026-10-19T23:40:24Z WSL initiate verify: suzuki isolation=process timeout=30
+2026-10-19T23:40:26Z WSL verify returned: suzuki exit=0
+2026-10-19T23:40:26Z passed: suzuki receipt=20261019T234026Z-0995ea9fe1fa
+2026-10-19T23:40:26Z WSL initiate verify: schedule isolation=process timeout=30
+2026-10-19T23:40:28Z WSL verify returned: schedule exit=0
+2026-10-19T23:40:28Z passed: schedule receipt=20261019T234028Z-6b088d9ba154
+2026-10-19T23:40:28Z WSL initiate verify: composite isolation=process timeout=30
+2026-10-19T23:40:30Z WSL verify returned: composite exit=0
+2026-10-19T23:40:30Z passed: composite receipt=20261019T234030Z-647cc17c27e6
+2026-10-19T23:40:30Z WSL initiate verify: symplectic isolation=process timeout=30
+2026-10-19T23:40:32Z WSL verify returned: symplectic exit=0
+2026-10-19T23:40:32Z passed: symplectic receipt=20261019T234031Z-50ec695a67f1
+2026-10-19T23:40:32Z WSL initiate: D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe receipts verify
+2026-10-19T23:40:32Z jovin-chain: {
+2026-10-19T23:40:32Z jovin-chain:   "valid": true,
+2026-10-19T23:40:32Z jovin-chain:   "count": 35,
+2026-10-19T23:40:32Z jovin-chain:   "head_sha256": "8164009132cc530c897ec2a54f072b43e582e7b84c36abeeadc9cca846144fa3",
+2026-10-19T23:40:32Z jovin-chain:   "problems": []
+2026-10-19T23:40:32Z jovin-chain: }
+2026-10-19T23:40:32Z DONE: reference operators passed process isolation

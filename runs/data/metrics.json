@@ -1,0 +1,13 @@
+{
+  "complete": true,
+  "host_gpu": false,
+  "run_id": "data",
+  "smol_error": null,
+  "smol_tokenizer": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "smol_train_tokens": 471159685,
+  "tokenizer": "gpt2",
+  "train_tokens": 473992236,
+  "val_split": "validation",
+  "val_tokens": 4765918,
+  "vocab": 50257
+}

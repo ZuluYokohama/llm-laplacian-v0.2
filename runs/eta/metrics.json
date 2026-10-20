@@ -1,0 +1,10 @@
+{
+  "caveat": "M=32 and SmolLM2-135M are not in the smoke rates",
+  "complete": true,
+  "host_gpu": false,
+  "plain_seconds_per_step": 0.35441522100009026,
+  "projected_days_counted_runs": 96.7550568626209,
+  "pulse_seconds": 605.3494438999915,
+  "run_id": "eta",
+  "spectral_seconds_per_step": 2.026190260000294
+}

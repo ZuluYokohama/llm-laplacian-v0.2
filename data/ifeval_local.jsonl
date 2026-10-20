@@ -1,0 +1,12 @@
+{"prompt": "Reply with at most eight words about a river.", "checks": [{"type": "max_words", "value": 8}]}
+{"prompt": "Reply with at least twelve words about a mountain.", "checks": [{"type": "min_words", "value": 12}]}
+{"prompt": "Mention the word lantern in a sentence about night.", "checks": [{"type": "must_include", "value": "lantern"}]}
+{"prompt": "Describe a garden without using the word flower.", "checks": [{"type": "must_exclude", "value": "flower"}]}
+{"prompt": "Answer in lowercase about the moon.", "checks": [{"type": "lowercase", "value": true}]}
+{"prompt": "Answer in uppercase about the sun.", "checks": [{"type": "uppercase", "value": true}]}
+{"prompt": "Reply with a JSON object containing the key color.", "checks": [{"type": "json_key", "value": "color"}]}
+{"prompt": "Write exactly two sentences about a bridge.", "checks": [{"type": "sentences", "value": 2}]}
+{"prompt": "Use at most six words and include the word maple.", "checks": [{"type": "max_words", "value": 6}, {"type": "must_include", "value": "maple"}]}
+{"prompt": "Write at least ten lowercase words about rain.", "checks": [{"type": "min_words", "value": 10}, {"type": "lowercase", "value": true}]}
+{"prompt": "Do not use the word dragon. Mention a castle.", "checks": [{"type": "must_exclude", "value": "dragon"}, {"type": "must_include", "value": "castle"}]}
+{"prompt": "Reply with JSON containing the key count and use at most twenty words.", "checks": [{"type": "json_key", "value": "count"}, {"type": "max_words", "value": 20}]}

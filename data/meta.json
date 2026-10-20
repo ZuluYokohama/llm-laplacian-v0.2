@@ -1,0 +1,14 @@
+{
+  "tokenizer": "gpt2",
+  "vocab": 50257,
+  "eos": 50256,
+  "eos_source": "<|endoftext|>",
+  "train_tokens": 473992236,
+  "val_tokens": 4765918,
+  "val_split": "validation",
+  "dtype": "uint16",
+  "smol_tokenizer": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "smol_vocab": 49152,
+  "smol_train_tokens": 471159685,
+  "smol_val_tokens": 4735556
+}

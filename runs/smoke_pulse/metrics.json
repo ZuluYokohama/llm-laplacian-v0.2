@@ -1,0 +1,366 @@
+{
+  "calibration_sequences": 512,
+  "complete": true,
+  "device_name": "NVIDIA GeForce RTX 5070",
+  "host_gpu": true,
+  "k": 8,
+  "m": 8,
+  "peak_vram_mib": 432.0,
+  "pulse_seconds": 605.3494438999915,
+  "reports": [
+    {
+      "alive": 1946,
+      "attn": [
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5410614013671875,
+          "mode": "sample",
+          "nnz_after": 35459,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.537078857421875,
+          "mode": "sample",
+          "nnz_after": 35198,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.538421630859375,
+          "mode": "sample",
+          "nnz_after": 35286,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5386962890625,
+          "mode": "sample",
+          "nnz_after": 35304,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        }
+      ],
+      "degenerate": false,
+      "down": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5390805659044193,
+        "mode": "sample",
+        "nnz_after": 268557,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      },
+      "lambda2": 0.6793442368507385,
+      "layer": 0,
+      "quota": 102,
+      "removed": 102,
+      "suzuki": {
+        "info_trace": 1.1067360639572144,
+        "solved": true,
+        "survivors": 1946,
+        "tau": 0.001
+      },
+      "up": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5393937082476875,
+        "mode": "sample",
+        "nnz_after": 268713,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      }
+    },
+    {
+      "alive": 1946,
+      "attn": [
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5389862060546875,
+          "mode": "sample",
+          "nnz_after": 35323,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5383758544921875,
+          "mode": "sample",
+          "nnz_after": 35283,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.540985107421875,
+          "mode": "sample",
+          "nnz_after": 35454,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.53875732421875,
+          "mode": "sample",
+          "nnz_after": 35308,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        }
+      ],
+      "degenerate": false,
+      "down": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5400641540339157,
+        "mode": "sample",
+        "nnz_after": 269047,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      },
+      "lambda2": 0.7522786259651184,
+      "layer": 1,
+      "quota": 102,
+      "removed": 102,
+      "suzuki": {
+        "info_trace": 1.2257236242294312,
+        "solved": true,
+        "survivors": 1946,
+        "tau": 0.001
+      },
+      "up": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5392873201438849,
+        "mode": "sample",
+        "nnz_after": 268660,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      }
+    },
+    {
+      "alive": 1946,
+      "attn": [
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.53863525390625,
+          "mode": "sample",
+          "nnz_after": 35300,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5371246337890625,
+          "mode": "sample",
+          "nnz_after": 35201,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.538177490234375,
+          "mode": "sample",
+          "nnz_after": 35270,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.53997802734375,
+          "mode": "sample",
+          "nnz_after": 35388,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        }
+      ],
+      "degenerate": false,
+      "down": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5390444340955807,
+        "mode": "sample",
+        "nnz_after": 268539,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      },
+      "lambda2": 0.7848898768424988,
+      "layer": 2,
+      "quota": 102,
+      "removed": 102,
+      "suzuki": {
+        "info_trace": 1.244323492050171,
+        "solved": true,
+        "survivors": 1946,
+        "tau": 0.001
+      },
+      "up": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5397530190133607,
+        "mode": "sample",
+        "nnz_after": 268892,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      }
+    },
+    {
+      "alive": 1946,
+      "attn": [
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.54046630859375,
+          "mode": "sample",
+          "nnz_after": 35420,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5401611328125,
+          "mode": "sample",
+          "nnz_after": 35400,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5401153564453125,
+          "mode": "sample",
+          "nnz_after": 35397,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5399627685546875,
+          "mode": "sample",
+          "nnz_after": 35387,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        }
+      ],
+      "degenerate": false,
+      "down": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5397349531089414,
+        "mode": "sample",
+        "nnz_after": 268883,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      },
+      "lambda2": 0.8255720138549805,
+      "layer": 3,
+      "quota": 102,
+      "removed": 102,
+      "suzuki": {
+        "info_trace": 1.259564757347107,
+        "solved": true,
+        "survivors": 1946,
+        "tau": 0.001
+      },
+      "up": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5396165210688592,
+        "mode": "sample",
+        "nnz_after": 268824,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      }
+    },
+    {
+      "alive": 1946,
+      "attn": [
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.5400390625,
+          "mode": "sample",
+          "nnz_after": 35392,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.53912353515625,
+          "mode": "sample",
+          "nnz_after": 35332,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.540985107421875,
+          "mode": "sample",
+          "nnz_after": 35454,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        },
+        {
+          "degenerate_sample": false,
+          "k": 6655,
+          "kept_fraction": 0.542999267578125,
+          "mode": "sample",
+          "nnz_after": 35586,
+          "nnz_before": 65536,
+          "retain_target": 65536
+        }
+      ],
+      "degenerate": false,
+      "down": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5390103096094553,
+        "mode": "sample",
+        "nnz_after": 268522,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      },
+      "lambda2": 0.8472302556037903,
+      "layer": 4,
+      "quota": 102,
+      "removed": 102,
+      "suzuki": {
+        "info_trace": 1.269474744796753,
+        "solved": true,
+        "survivors": 1946,
+        "tau": 0.001
+      },
+      "up": {
+        "degenerate_sample": false,
+        "k": 8211,
+        "kept_fraction": 0.5396827627183967,
+        "mode": "sample",
+        "nnz_after": 268857,
+        "nnz_before": 498176,
+        "retain_target": 498176
+      }
+    }
+  ],
+  "run_id": "smoke_pulse",
+  "seconds": 605.3494463000097,
+  "tokens_note": "one culling pulse on a freshly initialized M=8 model",
+  "vocab": 50257
+}
