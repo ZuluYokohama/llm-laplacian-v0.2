@@ -1,0 +1,17 @@
+.venv/
+cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.pt
+*.safetensors
+data/*.u16
+data/*.bin
+runs/queue.log
+runs/frozen.log
+runs/heartbeat.txt
+runs/queue.pid
+runs/**/*.tmp
+.secrets/
+.env
+*.env

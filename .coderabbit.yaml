@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# One review of the source. Later epoch commits touch ledger/ only and are
+# outside the path filters, and automatic review pauses after the first pass.
+language: en-US
+early_access: false
+tone_instructions: >
+  Be concise and evidence-driven. Prioritize correctness and concrete failure
+  cases. A host sha256 is not a jovin-harness receipt. Values stored as
+  literature_target were not measured. Do not ask for checkpoint files to be
+  committed.
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: true
+  poem: false
+  in_progress_fortune: false
+  auto_apply_labels: false
+  auto_assign_reviewers: false
+  auto_review:
+    enabled: true
+    labels: ["review-ready"]
+    drafts: false
+    base_branches: ["main"]
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 1
+  path_filters:
+    - "src/**"
+    - "tests/**"
+    - "scripts/**"
+    - "reference/**"
+    - "experiments/**"
+    - "paper/**"
+    - "pyproject.toml"
+    - "README.md"
+    - ".coderabbit.yaml"
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: >
+        Review device selection, the single-process queue, and checkpoint
+        resume. The RTX 5070 is selected by name. The frozen branch must not
+        use that GPU. Do not treat literature_target numbers as pass
+        conditions, and do not treat a host sha256 as a jovin receipt.
+    - path: "tests/**/*.py"
+      instructions: >
+        Look for shared implementation assumptions, missing negative cases,
+        and assertions that only repeat the implementation. Keep GPU tests
+        from allocating the training device while a run is live.
+    - path: "scripts/**"
+      instructions: >
+        The epoch publisher may commit ledger/arm0.jsonl only. It must not
+        add weight files, logs, or secrets. A failed push is not a successful
+        epoch record.
+  finishing_touches:
+    docstring:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+chat:
+  auto_reply: false
