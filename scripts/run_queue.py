@@ -8,8 +8,10 @@ source metrics. runs/QUEUE_DONE is written only after the last item.
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -29,7 +31,8 @@ from laplacian.arms import all_configs, get_config  # noqa: E402
 from laplacian.runtime import apply_env, write_metrics  # noqa: E402
 
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
-EXE = Path(r"D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe")
+EXE = Path(os.environ.get("JOVIN_HARNESS_EXE") or shutil.which("jovin-harness") or
+           r"D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe")
 RUNS = ROOT / "runs"
 LEDGER = RUNS / "harness-ledger.jsonl"
 DONE = RUNS / "QUEUE_DONE"
@@ -48,8 +51,9 @@ def child_env():
     env["TORCH_HOME"] = str(ROOT / "cache" / "torch")
     env["TOKENIZERS_PARALLELISM"] = "false"
     env["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    env["JOVIN_HARNESS_EXE"] = str(EXE)
     env["JOVIN_HARNESS_RUNTIME"] = "wsl:JovinHarness"
-    env["JOVIN_HARNESS_TIMEOUT_S"] = "30"
+    env.setdefault("JOVIN_HARNESS_TIMEOUT_S", "30")
     env.pop("PYTORCH_CUDA_ALLOC_CONF", None)
     return env
 
@@ -203,6 +207,10 @@ def preflight_wsl():
     report = json_document(proc.stdout)
     if proc.returncode != 0 or not report.get("ready"):
         raise SystemExit("jovin doctor is not ready")
+    return verify_receipt_chain()
+
+
+def verify_receipt_chain():
     print(f"WSL initiate: {EXE} receipts verify", flush=True)
     chain = subprocess.run(
         [str(EXE), "receipts", "verify"],
@@ -220,42 +228,54 @@ def preflight_wsl():
     return receipt.get("head_sha256"), receipt.get("count")
 
 
-INVARIANT_SOURCES = (
-    "src/laplacian/host_invariants.py",
-    "src/laplacian/losses.py",
-    "src/laplacian/train.py",
-    "src/laplacian/culling.py",
-    "reference/operators/fiedler.py",
-)
+GATE_SOURCES = {
+    "pytest": ("src/**/*.py", "scripts/**/*.py", "tests/**/*.py", "reference/operators/**/*.py", "reference/tests/**/*.py", "pyproject.toml"),
+    "verify_reference": ("reference/operators/**/*.py", "reference/tests/**/*.py", "scripts/verify_reference.ps1"),
+    "host_invariants": ("src/**/*.py", "reference/operators/fiedler.py"),
+    "mcp_stdio": ("src/**/*.py",),
+}
 
 
-def source_newer_than(metrics, relatives):
-    metrics_path = ROOT / metrics
-    if not metrics_path.exists():
-        return True
-    stamp = metrics_path.stat().st_mtime
-    for relative in relatives:
-        path = ROOT / relative
-        if path.is_file() and path.stat().st_mtime > stamp:
-            return True
-    return False
+def gate_source_snapshot(item):
+    """Content identity of correctness inputs; generated receipts are not inputs.
+
+    Include paths as well as bytes so added/deleted tests invalidate old passes,
+    even when a checkout or copy preserves filesystem timestamps. Historical
+    training measurements intentionally retain their original resume behavior.
+    """
+    if item["id"] not in GATE_SOURCES:
+        return None
+    paths = {ROOT / "scripts" / "run_queue.py"}
+    for pattern in GATE_SOURCES[item["id"]]:
+        paths.update(path for path in ROOT.glob(pattern) if path.is_file())
+    files = {
+        path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(paths) if path.is_file()
+    }
+    identity = {"files": files, "command": item["cmd"]}
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True).encode("utf-8")).hexdigest()
+    return {"sha256": digest, **identity}
 
 
-def reference_is_stale(metrics):
-    metrics_path = ROOT / metrics
-    if not metrics_path.exists():
-        return True
-    stamp = metrics_path.stat().st_mtime
-    for path in (ROOT / "reference").rglob("*"):
-        if path.is_file() and path.stat().st_mtime > stamp:
-            return True
-    return False
+def gate_is_stale(item, state):
+    expected = gate_source_snapshot(item)
+    return expected is not None and state.get("payload", {}).get("verification_source") != expected
+
+
+def correctness_gates_current(items):
+    for item in items:
+        if item["id"] in GATE_SOURCES:
+            state = metrics_state(ROOT / item["metrics"])
+            if not state["ok"] or gate_is_stale(item, state):
+                return False
+    return True
 
 
 def write_gate(item_id, proof):
     return write_metrics(
         RUNS / item_id / "metrics.json",
-        {"run_id": item_id, "complete": True, "host_gpu": False, "kind": "host_gate", "proof": proof[-400:]},
+        {"run_id": item_id, "complete": True, "host_gpu": False, "jovin_receipt": False,
+         "kind": "host_gate", "proof": proof[-400:]},
     )
 
 
@@ -494,38 +514,57 @@ def ledger_row(item, head, count, exit_code, state, skipped):
 
 
 def execute(item):
+    snapshot = gate_source_snapshot(item)
     if item["kind"] == "alias":
         copy_alias(item)
         return 0
     if item["kind"] == "mcp":
-        return run_mcp()
-    code = stream_command(item["cmd"])
-    if code == 0 and item["kind"] == "gate":
-        write_gate(item["id"], item["id"])
+        code = run_mcp()
+    else:
+        code = stream_command(item["cmd"])
+        if code == 0 and item["kind"] == "gate":
+            write_gate(item["id"], item["id"])
+    if code == 0 and snapshot is not None:
+        if snapshot != gate_source_snapshot(item):
+            print(f"FAILED {item['id']} source changed during verification; rerun required", flush=True)
+            return 1
+        state = metrics_state(ROOT / item["metrics"])
+        if not state["ok"]:
+            return 1
+        payload = dict(state["payload"])
+        payload["verification_source"] = snapshot
+        write_metrics(ROOT / item["metrics"], payload)
     return code
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--gates-only", action="store_true",
+                        help="Run/check correctness gates only; never start training or write QUEUE_DONE.")
+    args = parser.parse_args(argv)
     apply_env()
     RUNS.mkdir(parents=True, exist_ok=True)
-    if DONE.exists():
+    items = build_items()
+    if args.gates_only:
+        items = [item for item in items if item["id"] in GATE_SOURCES]
+    if not args.gates_only and DONE.exists() and correctness_gates_current(items):
         print("SKIP queue runs/QUEUE_DONE exists", flush=True)
         return 0
     others = foreign_pids()
     if others:
         print(f"FAILED another run_queue.py is alive: {others}", flush=True)
         return 1
+    if not args.gates_only and DONE.exists():
+        DONE.unlink()
+        print("RECHECK queue correctness inputs changed", flush=True)
     heartbeat(f"QUEUE preflight pid={os.getpid()}")
     print(f"QUEUE pid={os.getpid()}", flush=True)
     head, count = preflight_wsl()
     print(f"jovin head {head} count {count}", flush=True)
     backfill(head, count)
-    items = build_items()
     for item in items:
         state = metrics_state(ROOT / item["metrics"])
-        stale = item["id"] == "verify_reference" and reference_is_stale(item["metrics"])
-        if item["id"] == "host_invariants":
-            stale = source_newer_than(item["metrics"], INVARIANT_SOURCES)
+        stale = gate_is_stale(item, state)
         # The data metrics hash can be present on a clean checkout while the
         # gitignored token memmaps are not. Skipping then fails the first train.
         needs_memmaps = item["id"] == "data" and not data_files_ready()
@@ -539,6 +578,10 @@ def main():
         heartbeat(f"QUEUE start {item['id']}")
         print(f"QUEUE start {item['id']}", flush=True)
         code = execute(item)
+        if code == 0 and item["id"] == "verify_reference":
+            # The verification command appends twelve receipts. Record the
+            # verified chain after that run, not the preflight's older head.
+            head, count = verify_receipt_chain()
         state = metrics_state(ROOT / item["metrics"])
         append_ledger(ledger_row(item, head, count, code, state, False))
         if code != 0 or not state["ok"]:
@@ -548,6 +591,10 @@ def main():
             )
             return code or 1
         print(f"QUEUE pass {item['id']} sha256={state['sha256']}", flush=True)
+    if args.gates_only:
+        heartbeat("QUEUE correctness gates done")
+        print("DONE correctness gates; training was not started", flush=True)
+        return 0
     DONE.write_text(
         json.dumps({"complete": True, "items": len(items), "jovin_head_at_start": head}, indent=2) + "\n",
         encoding="utf-8",

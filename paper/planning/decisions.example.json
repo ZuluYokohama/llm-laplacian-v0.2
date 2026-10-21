@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "example_only_not_authorized",
+  "compute_scheduled": false,
+  "confirmatory_training_scheduled": false,
+  "recommended_core_gpu_hours": {
+    "approved": false,
+    "hard_cap": 181,
+    "ledger": "runs/publication_study/budget.jsonl"
+  },
+  "instructions": "This example is not an execution grant. An independently authorized local study must record its actual approval and accounting before running the budget wrapper. Preserve existing production decisions and ledgers."
+}

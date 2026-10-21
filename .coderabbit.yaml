@@ -35,6 +35,9 @@ reviews:
     - "pyproject.toml"
     - "README.md"
     - ".coderabbit.yaml"
+    - ".gitattributes"
+    - ".gitignore"
+    - "runs/optimization_20261021/baseline_losses.py"
   path_instructions:
     - path: "src/**/*.py"
       instructions: >

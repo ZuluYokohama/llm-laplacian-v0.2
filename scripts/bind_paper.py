@@ -1,8 +1,10 @@
-"""Build the report only after runs/QUEUE_DONE.
+"""Build the report only from a publication-reviewed claim manifest.
 
 Placeholders {{m:RUN:path}} must resolve inside a complete hashed metrics file.
 Placeholders {{c:KEY}} must name a reference with a retrieved source file and a URL, DOI, or local_source.
 Literature target strings are rejected unless the same line says they were not measured.
+Publication inputs must be manifest artifacts. resolved_manuscript_sha256 binds
+the exact substituted UTF-8/LF text; the emitted resolved file uses those bytes.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BAITS = ("1.466", "0.866", "1e-17", "10.9 ms", "220 ms", "7 kB", "0.67 s", "0.003 ms")
 ALLOW = ("literature_target", "not measured", "not run", "unverified")
-PLACEHOLDER = re.compile(r"\{\{m:([A-Za-z0-9_]+):([A-Za-z0-9_.]+)\}\}|\{\{c:([A-Za-z0-9_]+)\}\}")
+PLACEHOLDER = re.compile(r"\{\{m:([A-Za-z0-9_/-]+):([A-Za-z0-9_.]+)\}\}|\{\{c:([A-Za-z0-9_]+)\}\}")
 
 
 def queue_is_done():
@@ -71,7 +73,10 @@ def lookup(payload, path):
 
 
 def metric_text(run_id, path):
-    state = metrics_ok(ROOT / "runs" / run_id / "metrics.json")
+    source = (ROOT / "runs" / run_id / "metrics.json").resolve()
+    if not source.is_relative_to((ROOT / "runs").resolve()):
+        raise SystemExit("metric source escapes runs directory")
+    state = metrics_ok(source)
     if not state["ok"]:
         raise SystemExit(f"placeholder {run_id}:{path} is not in a complete hashed metrics file")
     try:
@@ -88,9 +93,17 @@ def cite_text(references, key):
     linked = bool(entry.get("url") or entry.get("doi") or entry.get("local_source"))
     if not linked:
         raise SystemExit(f"citation {key} has no url, doi, or local_source")
-    source = ROOT / entry.get("source_file", "")
-    if not source.exists():
+    relative = entry.get("source_file")
+    if not isinstance(relative, str) or not relative.strip():
         raise SystemExit(f"citation {key} has no retrieved source file")
+    source = (ROOT / relative).resolve()
+    if not source.is_relative_to(ROOT.resolve()) or not source.is_file() or source.stat().st_size == 0:
+        raise SystemExit(f"citation {key} has no retrieved source file")
+    expected = entry.get("source_sha256")
+    if not expected or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+        raise SystemExit(f"citation {key} has no matching source byte hash")
+    if entry.get("citation_support_reviewed") is not True:
+        raise SystemExit(f"citation {key} has not been checked for support")
     return entry.get("label") or key
 
 
@@ -177,13 +190,61 @@ def render_pages(pdf, folder):
         raise SystemExit(f"pdftoppm failed: {proc.stderr}")
 
 
-def main():
-    if not queue_is_done():
-        raise SystemExit("refusing to build the paper before runs/QUEUE_DONE")
+def require_bound_artifact(manifest, path, kinds, *, raw_bytes=False):
+    """Require an input in the artifact set already checked by validate_manifest."""
+    path = Path(path).resolve()
+    for artifact in manifest["artifacts"].values():
+        if (ROOT / artifact["path"]).resolve() != path:
+            continue
+        if artifact.get("kind") not in kinds:
+            continue
+        if raw_bytes and artifact.get("hash_convention", "raw_bytes") != "raw_bytes":
+            continue
+        return
+    raise SystemExit(f"publication input is not bound as a validated artifact: {path}")
+
+
+def resolve_publication(manifest):
+    """Check all publication gates before returning any text for output.
+
+    This verifies recorded review bindings, not the authenticity or scientific
+    judgment of a human review. It never creates or updates review declarations.
+    """
+    from validate_claims import validate_manifest
+
+    try:
+        validate_manifest(manifest, root=ROOT, publication=True)
+    except (ValueError, KeyError, IndexError, TypeError, OSError) as exc:
+        raise SystemExit(f"publication evidence gate failed: {exc}")
     manuscript = ROOT / "paper" / "manuscript.md"
-    references = json.loads((ROOT / "paper" / "references.json").read_text(encoding="utf-8"))
-    resolved = substitute(manuscript.read_text(encoding="utf-8"), references)
-    (ROOT / "paper" / "manuscript.resolved.md").write_text(resolved, encoding="utf-8")
+    if (ROOT / manifest["manuscript"]["path"]).resolve() != manuscript.resolve():
+        raise SystemExit("reviewed manuscript does not match the build input")
+    reference_path = ROOT / "paper" / "references.json"
+    require_bound_artifact(manifest, reference_path, {"json", "file"}, raw_bytes=True)
+    references = json.loads(reference_path.read_text(encoding="utf-8"))
+    text = manuscript.read_text(encoding="utf-8")
+    resolved = substitute(text, references)
+    for match in PLACEHOLDER.finditer(text):
+        if match.group(1):
+            source = ROOT / "runs" / match.group(1) / "metrics.json"
+            require_bound_artifact(manifest, source, {"metrics"})
+        else:
+            source = ROOT / references[match.group(3)]["source_file"]
+            require_bound_artifact(manifest, source, {"file"}, raw_bytes=True)
+    digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()
+    if manifest.get("resolved_manuscript_sha256") != digest:
+        raise SystemExit("human review must bind the exact resolved manuscript UTF-8/LF bytes")
+    return resolved
+
+
+def main():
+    # A queue marker cannot establish that the manuscript's claims are ready.
+    manifest_path = ROOT / "paper" / "claim_evidence.json"
+    if not manifest_path.is_file():
+        raise SystemExit("refusing publication build without paper/claim_evidence.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    resolved = resolve_publication(manifest)
+    (ROOT / "paper" / "manuscript.resolved.md").write_bytes(resolved.encode("utf-8"))
     pdf = ROOT / "paper" / "spectral_llm_report.pdf"
     build_pdf(resolved, pdf)
     render_pages(pdf, ROOT / "paper" / "pages")

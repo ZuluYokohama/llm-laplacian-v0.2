@@ -1,0 +1,18 @@
+# Keep source and the raw-hash-pinned historical baseline stable on Windows.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ps1 text eol=lf
+*.txt text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Evidence artifacts preserve their recorded raw bytes, including LF sidecars.
+runs/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+reference/receipts/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+data/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+paper/planning/*.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+paper/planning/environment_*/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
