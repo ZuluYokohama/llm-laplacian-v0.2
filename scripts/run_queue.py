@@ -220,6 +220,27 @@ def preflight_wsl():
     return receipt.get("head_sha256"), receipt.get("count")
 
 
+INVARIANT_SOURCES = (
+    "src/laplacian/host_invariants.py",
+    "src/laplacian/losses.py",
+    "src/laplacian/train.py",
+    "src/laplacian/culling.py",
+    "reference/operators/fiedler.py",
+)
+
+
+def source_newer_than(metrics, relatives):
+    metrics_path = ROOT / metrics
+    if not metrics_path.exists():
+        return True
+    stamp = metrics_path.stat().st_mtime
+    for relative in relatives:
+        path = ROOT / relative
+        if path.is_file() and path.stat().st_mtime > stamp:
+            return True
+    return False
+
+
 def reference_is_stale(metrics):
     metrics_path = ROOT / metrics
     if not metrics_path.exists():
@@ -327,6 +348,12 @@ def build_items():
             ],
             "metrics": "runs/verify_reference/metrics.json",
         },
+        run_item(
+            "host_invariants",
+            [str(PY), "-u", "-m", "laplacian.host_invariants"],
+            "runs/host_invariants/metrics.json",
+            False,
+        ),
         {"id": "mcp_stdio", "kind": "mcp", "gpu": False, "cmd": [], "metrics": "runs/mcp_stdio/metrics.json"},
         run_item(
             "guidance_b",
@@ -497,6 +524,8 @@ def main():
     for item in items:
         state = metrics_state(ROOT / item["metrics"])
         stale = item["id"] == "verify_reference" and reference_is_stale(item["metrics"])
+        if item["id"] == "host_invariants":
+            stale = source_newer_than(item["metrics"], INVARIANT_SOURCES)
         # The data metrics hash can be present on a clean checkout while the
         # gitignored token memmaps are not. Skipping then fails the first train.
         needs_memmaps = item["id"] == "data" and not data_files_ready()

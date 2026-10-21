@@ -3,6 +3,7 @@
 import torch
 from torch import nn
 
+from laplacian.host_invariants import check
 from laplacian.losses import _lambda2
 from laplacian.train import resample_dead
 
@@ -21,6 +22,14 @@ def _normalized_eigenvalues(adjacency):
     normal = inv[:, None] * adjacency * inv[None, :]
     lap = torch.eye(adjacency.shape[0]) - normal
     return torch.linalg.eigvalsh(lap)
+
+
+def test_host_lambda2_agrees_with_the_isolated_reference():
+    report = check(nodes=12)
+    assert report["jovin_receipt"] is False
+    assert report["host_gpu"] is False
+    assert report["abs_gap"] < 1e-3
+    assert report["resample_write_through"] is True
 
 
 def test_lambda2_matches_the_fiedler_value_of_a_path():

@@ -91,6 +91,9 @@ def test_queue_lists_each_alias_once_and_fetches_last():
     assert ids.index("arm4") < ids.index("scale_m8")
     assert ids.index("arm3") < ids.index("arm3_masks")
     assert ids.index("smoke_pulse") < ids.index("eta")
+    assert ids.index("verify_reference") < ids.index("host_invariants") < ids.index("arm0")
+    invariant = next(item for item in module.build_items() if item["id"] == "host_invariants")
+    assert invariant["gpu"] is False
     assert ids[-1] == "fetch_references"
     assert "guidance_a" not in ids
 
