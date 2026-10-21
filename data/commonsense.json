@@ -1,0 +1,402 @@
+[
+  {
+    "prompt": "What color is the sky on a clear day?",
+    "answer": "blue"
+  },
+  {
+    "prompt": "How many legs does a typical dog have?",
+    "answer": "4"
+  },
+  {
+    "prompt": "What do bees make?",
+    "answer": "honey"
+  },
+  {
+    "prompt": "Which season comes after winter?",
+    "answer": "spring"
+  },
+  {
+    "prompt": "What is frozen water called?",
+    "answer": "ice"
+  },
+  {
+    "prompt": "How many days are in a week?",
+    "answer": "7"
+  },
+  {
+    "prompt": "What gas do humans breathe in to live?",
+    "answer": "oxygen"
+  },
+  {
+    "prompt": "What is the opposite of hot?",
+    "answer": "cold"
+  },
+  {
+    "prompt": "How many hours are in a day?",
+    "answer": "24"
+  },
+  {
+    "prompt": "What do plants need from the sun?",
+    "answer": "light"
+  },
+  {
+    "prompt": "Which ocean is the largest?",
+    "answer": "Pacific"
+  },
+  {
+    "prompt": "What is H2O?",
+    "answer": "water"
+  },
+  {
+    "prompt": "How many months are in a year?",
+    "answer": "12"
+  },
+  {
+    "prompt": "What tool cuts paper?",
+    "answer": "scissors"
+  },
+  {
+    "prompt": "Where do fish live?",
+    "answer": "water"
+  },
+  {
+    "prompt": "What is 10 minus 3?",
+    "answer": "7"
+  },
+  {
+    "prompt": "What planet is known as the red planet?",
+    "answer": "Mars"
+  },
+  {
+    "prompt": "How many wheels does a bicycle have?",
+    "answer": "2"
+  },
+  {
+    "prompt": "What do cows drink?",
+    "answer": "water"
+  },
+  {
+    "prompt": "Which direction does the sun rise?",
+    "answer": "east"
+  },
+  {
+    "prompt": "What is the capital of France?",
+    "answer": "Paris"
+  },
+  {
+    "prompt": "What is the capital of Japan?",
+    "answer": "Tokyo"
+  },
+  {
+    "prompt": "What is the capital of Italy?",
+    "answer": "Rome"
+  },
+  {
+    "prompt": "What is the capital of Spain?",
+    "answer": "Madrid"
+  },
+  {
+    "prompt": "What is the capital of Canada?",
+    "answer": "Ottawa"
+  },
+  {
+    "prompt": "What is the capital of Egypt?",
+    "answer": "Cairo"
+  },
+  {
+    "prompt": "What is the capital of Kenya?",
+    "answer": "Nairobi"
+  },
+  {
+    "prompt": "What is the capital of Peru?",
+    "answer": "Lima"
+  },
+  {
+    "prompt": "What is the capital of Norway?",
+    "answer": "Oslo"
+  },
+  {
+    "prompt": "What is the capital of Greece?",
+    "answer": "Athens"
+  },
+  {
+    "prompt": "What is the capital of Thailand?",
+    "answer": "Bangkok"
+  },
+  {
+    "prompt": "What is the capital of Portugal?",
+    "answer": "Lisbon"
+  },
+  {
+    "prompt": "What is the capital of Austria?",
+    "answer": "Vienna"
+  },
+  {
+    "prompt": "What is the capital of Poland?",
+    "answer": "Warsaw"
+  },
+  {
+    "prompt": "What is the capital of Ireland?",
+    "answer": "Dublin"
+  },
+  {
+    "prompt": "What is the capital of Chile?",
+    "answer": "Santiago"
+  },
+  {
+    "prompt": "What is the capital of Finland?",
+    "answer": "Helsinki"
+  },
+  {
+    "prompt": "What is the capital of Morocco?",
+    "answer": "Rabat"
+  },
+  {
+    "prompt": "What is the capital of Vietnam?",
+    "answer": "Hanoi"
+  },
+  {
+    "prompt": "What is the capital of New Zealand?",
+    "answer": "Wellington"
+  },
+  {
+    "prompt": "What is 1 plus 1?",
+    "answer": "2"
+  },
+  {
+    "prompt": "What is 2 plus 2?",
+    "answer": "4"
+  },
+  {
+    "prompt": "What is 3 plus 3?",
+    "answer": "6"
+  },
+  {
+    "prompt": "What is 4 plus 4?",
+    "answer": "8"
+  },
+  {
+    "prompt": "What is 5 plus 5?",
+    "answer": "10"
+  },
+  {
+    "prompt": "What is 6 plus 6?",
+    "answer": "12"
+  },
+  {
+    "prompt": "What is 7 plus 7?",
+    "answer": "14"
+  },
+  {
+    "prompt": "What is 8 plus 8?",
+    "answer": "16"
+  },
+  {
+    "prompt": "What is 9 plus 9?",
+    "answer": "18"
+  },
+  {
+    "prompt": "What is 10 plus 10?",
+    "answer": "20"
+  },
+  {
+    "prompt": "What is 11 plus 11?",
+    "answer": "22"
+  },
+  {
+    "prompt": "What is 12 plus 12?",
+    "answer": "24"
+  },
+  {
+    "prompt": "What is 13 plus 13?",
+    "answer": "26"
+  },
+  {
+    "prompt": "What is 14 plus 14?",
+    "answer": "28"
+  },
+  {
+    "prompt": "What is 15 plus 15?",
+    "answer": "30"
+  },
+  {
+    "prompt": "What is 16 plus 16?",
+    "answer": "32"
+  },
+  {
+    "prompt": "What is 17 plus 17?",
+    "answer": "34"
+  },
+  {
+    "prompt": "What is 18 plus 18?",
+    "answer": "36"
+  },
+  {
+    "prompt": "What is 19 plus 19?",
+    "answer": "38"
+  },
+  {
+    "prompt": "What is 20 plus 20?",
+    "answer": "40"
+  },
+  {
+    "prompt": "What is 21 plus 21?",
+    "answer": "42"
+  },
+  {
+    "prompt": "What is 22 plus 22?",
+    "answer": "44"
+  },
+  {
+    "prompt": "What is 23 plus 23?",
+    "answer": "46"
+  },
+  {
+    "prompt": "What is 24 plus 24?",
+    "answer": "48"
+  },
+  {
+    "prompt": "What is 25 plus 25?",
+    "answer": "50"
+  },
+  {
+    "prompt": "What is 26 plus 26?",
+    "answer": "52"
+  },
+  {
+    "prompt": "What is 27 plus 27?",
+    "answer": "54"
+  },
+  {
+    "prompt": "What is 28 plus 28?",
+    "answer": "56"
+  },
+  {
+    "prompt": "What is 29 plus 29?",
+    "answer": "58"
+  },
+  {
+    "prompt": "What is 30 plus 30?",
+    "answer": "60"
+  },
+  {
+    "prompt": "What is 1 times 2?",
+    "answer": "2"
+  },
+  {
+    "prompt": "What is 2 times 2?",
+    "answer": "4"
+  },
+  {
+    "prompt": "What is 3 times 2?",
+    "answer": "6"
+  },
+  {
+    "prompt": "What is 4 times 2?",
+    "answer": "8"
+  },
+  {
+    "prompt": "What is 5 times 2?",
+    "answer": "10"
+  },
+  {
+    "prompt": "What is 6 times 2?",
+    "answer": "12"
+  },
+  {
+    "prompt": "What is 7 times 2?",
+    "answer": "14"
+  },
+  {
+    "prompt": "What is 8 times 2?",
+    "answer": "16"
+  },
+  {
+    "prompt": "What is 9 times 2?",
+    "answer": "18"
+  },
+  {
+    "prompt": "What is 10 times 2?",
+    "answer": "20"
+  },
+  {
+    "prompt": "What is 11 times 2?",
+    "answer": "22"
+  },
+  {
+    "prompt": "What is 12 times 2?",
+    "answer": "24"
+  },
+  {
+    "prompt": "What is 13 times 2?",
+    "answer": "26"
+  },
+  {
+    "prompt": "What is 14 times 2?",
+    "answer": "28"
+  },
+  {
+    "prompt": "What is 15 times 2?",
+    "answer": "30"
+  },
+  {
+    "prompt": "What is 16 times 2?",
+    "answer": "32"
+  },
+  {
+    "prompt": "What is 17 times 2?",
+    "answer": "34"
+  },
+  {
+    "prompt": "What is 18 times 2?",
+    "answer": "36"
+  },
+  {
+    "prompt": "What is 19 times 2?",
+    "answer": "38"
+  },
+  {
+    "prompt": "What is 20 times 2?",
+    "answer": "40"
+  },
+  {
+    "prompt": "What is 21 times 2?",
+    "answer": "42"
+  },
+  {
+    "prompt": "What is 22 times 2?",
+    "answer": "44"
+  },
+  {
+    "prompt": "What is 23 times 2?",
+    "answer": "46"
+  },
+  {
+    "prompt": "What is 24 times 2?",
+    "answer": "48"
+  },
+  {
+    "prompt": "What is 25 times 2?",
+    "answer": "50"
+  },
+  {
+    "prompt": "What is 26 times 2?",
+    "answer": "52"
+  },
+  {
+    "prompt": "What is 27 times 2?",
+    "answer": "54"
+  },
+  {
+    "prompt": "What is 28 times 2?",
+    "answer": "56"
+  },
+  {
+    "prompt": "What is 29 times 2?",
+    "answer": "58"
+  },
+  {
+    "prompt": "What is 30 times 2?",
+    "answer": "60"
+  }
+]

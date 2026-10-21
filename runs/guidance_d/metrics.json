@@ -1,0 +1,56 @@
+{
+  "complete": true,
+  "device": {
+    "capability": [
+      12,
+      0
+    ],
+    "device_index": 0,
+    "device_name": "NVIDIA GeForce RTX 5070",
+    "l2_cache_bytes": 50331648,
+    "memory_total_mib": 12199.4375,
+    "memory_used_mib": 0.0
+  },
+  "experiment": "D",
+  "host_gpu": true,
+  "literature_target_note": "Source note states about 7 kB, 0.67 s train, and 0.003 ms inference. Those are not measurements.",
+  "n_perimeter": 256,
+  "peak_vram_mib": 224.0,
+  "relu": {
+    "final_loss": 8.814703323878348e-05,
+    "fp8": {
+      "accepted": true,
+      "bytes": 1217,
+      "dtype": "float8_e4m3fn",
+      "roundtrip_keys": 6
+    },
+    "infer_latency_ms": 0.4200409698486328,
+    "mse": 8.774513844400644e-05,
+    "near_zero_preactivation_fraction": 0.0006103515625,
+    "parameter_bytes": 4868,
+    "parameters": 1217,
+    "r2": 0.9999122548720161,
+    "sign_agreement": 0.984375,
+    "train_seconds": 40.64038569998229
+  },
+  "response": "kappa * exp(-0.25 x), then mean-std normalized",
+  "steps": 400,
+  "tropical": {
+    "final_loss": 0.019455069676041603,
+    "fp8": {
+      "accepted": true,
+      "bytes": 1185,
+      "dtype": "float8_e4m3fn",
+      "roundtrip_keys": 5
+    },
+    "infer_latency_ms": 0.36186321258544923,
+    "maxplus_tie_fraction": 0.0006103515625,
+    "mse": 0.019321434199810028,
+    "parameter_bytes": 4740,
+    "parameters": 1185,
+    "r2": 0.9806785681034842,
+    "semiring": "max-plus first layer, y_i = max_j (W_ij + x_j)",
+    "sign_agreement": 0.9609375,
+    "train_seconds": 26.304025600024033
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "abs_gap": 0.00045432205482476284,
+  "complete": true,
+  "host_gpu": false,
+  "host_lambda2": 0.040507104247808456,
+  "jovin_receipt": false,
+  "kind": "host_check",
+  "note": "Agrees with reference/operators/fiedler.py. Not a jovin receipt.",
+  "path_nodes": 12,
+  "reference_degenerate": false,
+  "reference_lambda2": 0.04096142630263322,
+  "resample_write_through": true,
+  "run_id": "host_invariants"
+}

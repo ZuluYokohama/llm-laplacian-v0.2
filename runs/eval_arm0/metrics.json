@@ -1,0 +1,50 @@
+{
+  "autointerp": {
+    "judge_model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "mean_recursive_drift": 0.41237113402061853,
+    "mean_score": 0.66,
+    "neurons": 100,
+    "scored": 100,
+    "selection": "highest activation variance on one batch, layer_index_0=2"
+  },
+  "circuit": {
+    "ce_ablate_circuit": 4.591862693428993,
+    "ce_circuit_only": 4.802194774150848,
+    "ce_full": 4.468182757496834,
+    "ce_layer_zero": 4.985096856951714,
+    "completeness": 0.23926593618279735,
+    "definition": "circuit = 16 highest-mean MLP neurons on the prompt; faithfulness uses circuit-only CE; completeness uses circuit-ablated CE",
+    "faithfulness": 0.3538345790794787,
+    "layer_index_0": 2,
+    "prompts": 16
+  },
+  "complete": true,
+  "device_name": "NVIDIA GeForce RTX 5070",
+  "dirichlet": 1.568181687616743e-05,
+  "gram_gap": 0.03954422473907471,
+  "gram_gap_definition": "mean absolute off-diagonal of the Gram matrix of pooled states at the evaluated layer",
+  "host_gpu": true,
+  "koopman": {
+    "henrici": 0.1589965522289276,
+    "states": 8191
+  },
+  "layer_index_0": 2,
+  "peak_vram_mib": 776.0,
+  "run_id": "eval_arm0",
+  "sae": {
+    "dead_fraction": 0.0400390625,
+    "dictionary": 1024,
+    "final_loss": 2.2740074200555682e-05,
+    "mean_l0": 776.140625,
+    "mse": 3.917364210792584e-06,
+    "steps": 400
+  },
+  "source_run": "arm0",
+  "transcoder": {
+    "definition": "linear map from layer stream tokens to that layer's MLP activations",
+    "mse": 0.0001579173986101523,
+    "steps": 400
+  },
+  "val_ce": 1.531456240452826,
+  "val_sequences": 1024
+}

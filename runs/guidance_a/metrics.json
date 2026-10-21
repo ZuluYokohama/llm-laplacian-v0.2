@@ -1,0 +1,58 @@
+{
+  "backend": "torch-fp64-matmul",
+  "cells": 8,
+  "device_name": "NVIDIA GeForce RTX 5070",
+  "experiment": "A",
+  "host_gpu": true,
+  "mlp": {
+    "closure_residual_l1": 668.4556884765625,
+    "final_loss": 0.9378359913825989,
+    "peak_vram_mib": 340.0,
+    "seconds": 1.1549526000162587,
+    "seconds_per_step": 0.005774763000081293,
+    "steps": 200
+  },
+  "nilpotency": {
+    "cells": 8,
+    "counts": {
+      "n0": 729,
+      "n1": 1944,
+      "n2": 1728,
+      "n3": 512
+    },
+    "device": "cuda:0",
+    "dtype": "float64",
+    "residual_b1_b2": 0.0,
+    "residual_b2_b3": 0.0,
+    "residual_l1": 0.0
+  },
+  "nilpotency_gate": {
+    "kind": "nilpotency",
+    "pass": true,
+    "residual_l1": 0.0
+  },
+  "symplectic_gate": {
+    "kind": "symplectic",
+    "pass": true,
+    "residual": 0.0
+  },
+  "telemetry": {
+    "capability": [
+      12,
+      0
+    ],
+    "device_index": 0,
+    "device_name": "NVIDIA GeForce RTX 5070",
+    "l2_cache_bytes": 50331648,
+    "memory_total_mib": 12199.4375,
+    "memory_used_mib": 0.0
+  },
+  "tno": {
+    "closure_residual_l1": 1.452226388209965e-05,
+    "final_loss": 0.9895110726356506,
+    "peak_vram_mib": 336.0,
+    "seconds": 10.813183799968101,
+    "seconds_per_step": 0.05406591899984051,
+    "steps": 200
+  }
+}

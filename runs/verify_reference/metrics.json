@@ -1,0 +1,7 @@
+{
+  "complete": true,
+  "host_gpu": false,
+  "kind": "host_gate",
+  "proof": "verify_reference",
+  "run_id": "verify_reference"
+}

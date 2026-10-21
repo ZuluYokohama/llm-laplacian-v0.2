@@ -1,0 +1,13 @@
+[project]
+name = "laplacian"
+version = "0.2.0"
+description = "Spectral-LLM and condition-state experiments on an RTX 5070."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

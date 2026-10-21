@@ -1,0 +1,109 @@
+{
+  "apparent_pairs": 755,
+  "classes": "two isotropic Gaussians, means (0,0) and (2.5,0)",
+  "complete": true,
+  "critical_cells": 9190,
+  "device": {
+    "capability": [
+      12,
+      0
+    ],
+    "device_index": 0,
+    "device_name": "NVIDIA GeForce RTX 5070",
+    "l2_cache_bytes": 50331648,
+    "memory_total_mib": 12199.4375,
+    "memory_used_mib": 0.0
+  },
+  "experiment": "C",
+  "finite_bars": 45,
+  "gdv_definition": "(mean intra-class L2 distance - mean inter-class L2 distance) / sqrt(dimension)",
+  "gdv_gate": {
+    "kind": "gdv",
+    "mlp": -0.9230921915861774,
+    "morse": -0.7084154235945592,
+    "pass": false
+  },
+  "global_adcock_carlsson": [
+    22.99001375118485,
+    15.958564913708457,
+    13.019024679348323,
+    11.842300231521298,
+    1.4463621059766163,
+    0.6607869688242508,
+    1.4988822341779355,
+    0.3984227744683469,
+    0.649965705715893,
+    1.6491452297679938,
+    0.3839399324100441,
+    0.6600346809780223
+  ],
+  "host_gpu": true,
+  "knn": 8,
+  "measured_gdv_mlp": -0.9230921915861774,
+  "measured_gdv_morse": -0.7084154235945592,
+  "mlp_final_loss": 0.0985071212053299,
+  "monomials_birth_persistence": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      3,
+      1
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      2
+    ]
+  ],
+  "n_points": 40,
+  "n_simplices": 10700,
+  "numpy_complex_seconds": 0.3545434000552632,
+  "peak_vram_mib": 2126.0,
+  "scan": {
+    "backend": "torch",
+    "max_abs_low_gap": 0,
+    "numpy_seconds": 0.32541769999079406,
+    "triton_error": "No module named 'triton'"
+  },
+  "seconds": 7.020571700006258,
+  "vpath_count_capped": 0,
+  "vpath_depth_cap": 6,
+  "vpath_parity": 0
+}

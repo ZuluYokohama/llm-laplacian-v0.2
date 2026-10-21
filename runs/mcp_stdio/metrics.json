@@ -1,0 +1,7 @@
+{
+  "complete": true,
+  "host_gpu": false,
+  "kind": "host_gate",
+  "proof": "{\"id\": \"nilpotency-zero\", \"ok\": true, \"result\": {\"pass\": true, \"residual_l1\": 0.0, \"kind\": \"nilpotency\"}}\n",
+  "run_id": "mcp_stdio"
+}
