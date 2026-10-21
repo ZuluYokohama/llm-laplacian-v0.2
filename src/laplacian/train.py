@@ -94,7 +94,7 @@ def forward_loss(model, inputs, targets, config, step):
     return loss, ce, outputs, penalties
 
 
-def save_checkpoint(path, model, optimizer, generator, step, pulses_done, stripped):
+def save_checkpoint(path, model, optimizer, generator, step, pulses_done, stripped, fired_sums=None, fired_tokens=0):
     payload = {
         "step": step,
         "model": model.state_dict(),
@@ -102,7 +102,10 @@ def save_checkpoint(path, model, optimizer, generator, step, pulses_done, stripp
         "generator": generator.get_state(),
         "pulses_done": list(pulses_done),
         "stripped": list(stripped),
+        "fired_tokens": int(fired_tokens),
     }
+    if fired_sums is not None:
+        payload["fired_sums"] = [item.detach().cpu() for item in fired_sums]
     temporary = path.with_suffix(".pt.tmp")
     torch.save(payload, temporary)
     temporary.replace(path)
@@ -126,24 +129,67 @@ def load_checkpoint(path, model, optimizer, generator, device):
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])
     restore_generator(generator, checkpoint["generator"])
-    return int(checkpoint["step"]), list(checkpoint.get("pulses_done", [])), list(checkpoint.get("stripped", []))
+    raw_sums = checkpoint.get("fired_sums")
+    fired_sums = None if raw_sums is None else [item.to(device) for item in raw_sums]
+    fired_tokens = int(checkpoint.get("fired_tokens") or 0)
+    return (
+        int(checkpoint["step"]),
+        list(checkpoint.get("pulses_done", [])),
+        list(checkpoint.get("stripped", [])),
+        fired_sums,
+        fired_tokens,
+    )
 
 
-def resample_dead(model, outputs, threshold=5e-6):
+def _add_fired(fired_sums, fired_tokens, outputs):
+    """Add one microbatch into the dead-unit window. fired is [batch, time, neurons]."""
+    totals = [item.detach().float().sum(dim=(0, 1)) for item in outputs["fired"]]
+    tokens = int(outputs["fired"][0].shape[0] * outputs["fired"][0].shape[1])
+    if fired_sums is None:
+        return totals, tokens
+    combined = [previous + extra for previous, extra in zip(fired_sums, totals)]
+    return combined, fired_tokens + tokens
+
+
+def resample_dead(model, rates, threshold=5e-6):
     changed = 0
-    for block, fired in zip(model.blocks, outputs["fired"]):
-        rate = fired.detach().float().mean(dim=(0, 1))
+    for block, rate in zip(model.blocks, rates):
         dead = (block.mlp.neuron_mask > 0) & (rate < threshold)
         index = torch.where(dead)[0]
         if index.numel() == 0:
             continue
         changed += int(index.numel())
+        # Advanced indexing returns a copy, so in-place init on the slice
+        # would not reach the parameter.
         with torch.no_grad():
-            torch.nn.init.normal_(block.mlp.up.weight[index], mean=0.0, std=0.02)
+            up = torch.empty(
+                index.numel(),
+                block.mlp.up.weight.shape[1],
+                device=block.mlp.up.weight.device,
+                dtype=block.mlp.up.weight.dtype,
+            )
+            torch.nn.init.normal_(up, mean=0.0, std=0.02)
+            block.mlp.up.weight.index_copy_(0, index, up)
             std = 0.02 / math.sqrt(2 * len(model.blocks))
-            torch.nn.init.normal_(block.mlp.down.weight[:, index], mean=0.0, std=std)
-            block.mlp.up_mask[index] = 1
-            block.mlp.down_mask[:, index] = 1
+            down = torch.empty(
+                block.mlp.down.weight.shape[0],
+                index.numel(),
+                device=block.mlp.down.weight.device,
+                dtype=block.mlp.down.weight.dtype,
+            )
+            torch.nn.init.normal_(down, mean=0.0, std=std)
+            block.mlp.down.weight.index_copy_(1, index, down)
+            block.mlp.up_mask.index_fill_(0, index, 1)
+            block.mlp.down_mask.index_copy_(
+                1,
+                index,
+                torch.ones(
+                    block.mlp.down_mask.shape[0],
+                    index.numel(),
+                    device=block.mlp.down_mask.device,
+                    dtype=block.mlp.down_mask.dtype,
+                ),
+            )
     return changed
 
 
@@ -212,9 +258,13 @@ def train(config):
     step = 0
     pulses_done = []
     stripped = []
+    fired_sums = None
+    fired_tokens = 0
     last = folder / "last.pt"
     if last.exists():
-        step, pulses_done, stripped = load_checkpoint(last, model, optimizer, generator, device)
+        step, pulses_done, stripped, fired_sums, fired_tokens = load_checkpoint(
+            last, model, optimizer, generator, device
+        )
         log_line(f"PROGRESS resume {config['run_id']} step={step}")
     if config["pulse_only"]:
         _pulse_only(config, model, optimizer, store, generator, device, name, meta)
@@ -248,15 +298,21 @@ def train(config):
             (loss / float(config["accum"])).backward()
             ce_sum += float(ce.detach().item())
             loss_sum += float(loss.detach().item())
+            if config["dead_units"] and step < 30_000:
+                fired_sums, fired_tokens = _add_fired(fired_sums, fired_tokens, outputs)
         torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["clip"]))
         optimizer.step()
         step += 1
         last_ce = ce_sum / float(config["accum"])
         last_loss = loss_sum / float(config["accum"])
         finite = math.isfinite(last_loss) and math.isfinite(last_ce)
-        if config["dead_units"] and step < 30_000 and step % 1000 == 0 and outputs is not None:
-            changed = resample_dead(model, outputs)
-            log_line(f"PROGRESS dead_resample step={step} neurons={changed}")
+        if config["dead_units"] and step < 30_000 and step % 1000 == 0 and fired_tokens > 0:
+            window_tokens = fired_tokens
+            rates = [total / float(window_tokens) for total in fired_sums]
+            changed = resample_dead(model, rates)
+            fired_sums = None
+            fired_tokens = 0
+            log_line(f"PROGRESS dead_resample step={step} neurons={changed} tokens={window_tokens}")
         if config["pulses"] and step in PULSE_STEPS and step not in pulses_done:
             reports, pulse_seconds = run_pulse(model, optimizer, store, config, generator)
             pulses_done.append(step)
@@ -270,15 +326,19 @@ def train(config):
                 f"vram_mb={used:.0f} nan={nan_flag}"
             )
         if not finite:
-            save_checkpoint(last, model, optimizer, generator, step, pulses_done, stripped)
+            save_checkpoint(
+                last, model, optimizer, generator, step, pulses_done, stripped, fired_sums, fired_tokens
+            )
             raise SystemExit(1)
         if step % 1000 == 0:
-            save_checkpoint(last, model, optimizer, generator, step, pulses_done, stripped)
+            save_checkpoint(
+                last, model, optimizer, generator, step, pulses_done, stripped, fired_sums, fired_tokens
+            )
         if step % stride == 0:
             save_weights(folder / f"weights_step{step:07d}.pt", model, step)
         if step % 10 == 0:
             enforce_guard()
-    save_checkpoint(last, model, optimizer, generator, step, pulses_done, stripped)
+    save_checkpoint(last, model, optimizer, generator, step, pulses_done, stripped, fired_sums, fired_tokens)
     save_weights(folder / "weights_final.pt", model, step)
     elapsed = time.perf_counter() - started
     payload = {
@@ -383,11 +443,13 @@ def run_masks(config):
         return model
 
     def score(model, label):
+        scorer = torch.Generator(device="cpu")
+        scorer.manual_seed(1)
         ce_total = 0.0
         batches = 32
         with torch.no_grad():
             for _batch in range(batches):
-                inputs, targets = store.batch(int(config["microbatch"]), generator)
+                inputs, targets = store.batch(int(config["microbatch"]), scorer)
                 inputs = inputs.to(device)
                 targets = targets.to(device)
                 _loss, ce, _outputs, _penalties = forward_loss(model, inputs, targets, config, 0)
@@ -484,9 +546,12 @@ def run_distill(config):
     step = 0
     last = folder / "last.pt"
     if last.exists():
-        step, _pulses, _stripped = load_checkpoint(last, model, optimizer, generator, device)
+        step, _pulses, _stripped, _fired_sums, _fired_tokens = load_checkpoint(
+            last, model, optimizer, generator, device
+        )
     total_steps = int(config["steps"])
     started = time.perf_counter()
+    started_step = step
     peak = memory_mib()
     last_loss = 0.0
     last_ce = 0.0
@@ -545,7 +610,7 @@ def run_distill(config):
         "manifold_constant": config.get("manifold_constant"),
         "steps": step,
         "seconds": elapsed,
-        "seconds_per_step": elapsed / max(step, 1),
+        "seconds_per_step": elapsed / max(step - started_step, 1),
         "tokens_per_step": int(config["microbatch"]) * int(config["accum"]) * int(config["context"]),
         "final_loss": last_loss,
         "final_ce": last_ce,

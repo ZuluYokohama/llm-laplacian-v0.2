@@ -13,9 +13,11 @@ $env:JOVIN_HARNESS_RUNTIME = "wsl:JovinHarness"
 $env:JOVIN_HARNESS_TIMEOUT_S = "30"
 $env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
 $env:PYTHONUNBUFFERED = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUTF8 = "1"
 Remove-Item Env:CUDA_VISIBLE_DEVICES -ErrorAction SilentlyContinue
 Remove-Item Env:PYTORCH_CUDA_ALLOC_CONF -ErrorAction SilentlyContinue
 Set-Content -Path "D:\LLM_LAPLACIAN_TEST_V0.2\runs\queue.pid" -Value $PID -Encoding ascii
-Add-Content -Path "D:\LLM_LAPLACIAN_TEST_V0.2\runs\queue.log" -Encoding ascii -Value "PROGRESS wrapper_timeout resume_from=runs/arm0/last.pt shell_pid=$PID"
+Add-Content -Path "D:\LLM_LAPLACIAN_TEST_V0.2\runs\queue.log" -Encoding ascii -Value "PROGRESS queue_resume shell_pid=$PID"
 cmd /c ".\.venv\Scripts\python.exe -u scripts\run_queue.py >> runs\queue.log 2>&1"
 exit $LASTEXITCODE

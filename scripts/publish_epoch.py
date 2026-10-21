@@ -132,19 +132,34 @@ def git(*args, check=True):
     return completed
 
 
+def head_branch():
+    completed = git("rev-parse", "--abbrev-ref", "HEAD")
+    return completed.stdout.strip()
+
+
+def require_branch():
+    current = head_branch()
+    if current != BRANCH:
+        raise SystemExit(f"refusing to publish from {current}; expected {BRANCH}")
+
+
 def publish(rows):
+    require_branch()
     git("add", "--", "ledger/arm0.jsonl")
-    staged = git("diff", "--cached", "--name-only")
-    if "ledger/arm0.jsonl" not in staged.stdout.splitlines():
+    staged = [line for line in git("diff", "--cached", "--name-only").stdout.splitlines() if line]
+    if not staged:
         return False
+    if staged != ["ledger/arm0.jsonl"]:
+        raise SystemExit("refusing to commit extra staged files: " + ", ".join(staged))
     steps = ",".join(str(row["step"]) for row in rows)
     message = f"Record Arm 0 epoch steps {steps}."
-    git(*GIT_USER, "commit", "-m", message)
+    git(*GIT_USER, "commit", "-m", message, "--", "ledger/arm0.jsonl")
     git("push", REMOTE, BRANCH)
     return True
 
 
 def push_if_ahead():
+    require_branch()
     status = git("status", "-sb", check=False)
     first = status.stdout.splitlines()[:1]
     if first and "ahead" in first[0]:

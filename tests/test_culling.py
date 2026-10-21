@@ -2,7 +2,7 @@
 
 import torch
 
-from laplacian.culling import collect_moments, resistance_sketch
+from laplacian.culling import collect_moments, resistance_sketch, suzuki_recalibrate
 from laplacian.model import SpectralTransformer
 from laplacian.operators_torch import jl_dimension
 
@@ -12,6 +12,29 @@ def test_collect_moments_counts_tokens_not_the_last_width():
     batches = [torch.randint(0, 32, (2, 8)), torch.randint(0, 32, (1, 4))]
     _grams, _sums, count = collect_moments(model, iter(batches), sequences=3, microbatch=1)
     assert count == 2 * 8 + 1 * 4
+
+
+def test_suzuki_recalibrate_accepts_a_bfloat16_weight():
+    class Down:
+        def __init__(self, weight):
+            self.weight = weight
+
+    weight = torch.nn.Parameter(torch.randn(3, 4, dtype=torch.bfloat16))
+    survivors = torch.tensor([0, 2])
+    report = suzuki_recalibrate(Down(weight), torch.eye(4), survivors, 1e-3)
+    assert report["solved"] is True
+    assert weight.dtype == torch.bfloat16
+    assert torch.isfinite(weight.detach().float()).all()
+
+
+def test_resistance_sketch_accepts_bfloat16_weights():
+    weight = torch.randn(6, 4, dtype=torch.bfloat16)
+    mask = torch.ones(6, 4)
+    resistance, width = resistance_sketch(weight, mask, eps=1.5, batch_columns=4, log_prefix="bf16")
+    assert resistance.dtype == torch.float32
+    assert resistance.shape == (6, 4)
+    assert width == jl_dimension(10, 1.5)
+    assert torch.isfinite(resistance).all()
 
 
 def test_resistance_sketch_cross_term_has_matrix_shape():

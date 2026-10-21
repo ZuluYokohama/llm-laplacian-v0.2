@@ -144,7 +144,9 @@ def _cross_entropy(model, input_ids, attention_mask):
         for start in range(0, input_ids.shape[0], 2):
             batch = input_ids[start : start + 2]
             mask = attention_mask[start : start + 2]
-            output = model(input_ids=batch, attention_mask=mask, labels=batch)
+            labels = batch.clone()
+            labels = labels.masked_fill(mask == 0, -100)
+            output = model(input_ids=batch, attention_mask=mask, labels=labels)
             losses.append(float(output.loss.detach().float().cpu()))
     return sum(losses) / max(len(losses), 1)
 

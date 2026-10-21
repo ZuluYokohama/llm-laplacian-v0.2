@@ -126,7 +126,9 @@ def _pulse_layer(mlp, masks, fraction):
             drop = torch.zeros(mlp.up_proj.out_features, dtype=torch.bool, device=remove.device)
             drop[remove] = True
             survivors = survivors[~drop[survivors]]
-        report["suzuki"] = suzuki_recalibrate(_Down(mlp.down_proj), masks["gram"] / count, survivors, 1e-3)
+        report["suzuki"] = suzuki_recalibrate(
+            _Down(mlp.down_proj.weight), masks["gram"] / count, survivors, 1e-3
+        )
         with torch.no_grad():
             masks["neuron"][remove] = 0
             mlp.up_proj.weight[remove] = 0
@@ -164,7 +166,30 @@ def _calibrate(model, bank, store, generator, device, sequences):
     model.train()
 
 
-def _strip_norms(model, bank_unused, step, done, store, generator, device):
+def _bind_stripped_norm(norm, scale):
+    """Replace RMSNorm.forward with the frozen scale. The closure is not in state_dict."""
+    if torch.is_tensor(scale):
+        frozen = scale.detach().to(device=norm.weight.device, dtype=norm.weight.dtype)
+    else:
+        frozen = norm.weight.detach().new_tensor(float(scale))
+    weight = norm.weight
+
+    def forward(x, weight=weight, scale=frozen):
+        return x * (weight.to(dtype=x.dtype) / scale.to(dtype=x.dtype))
+
+    norm.forward = forward
+    norm.weight.requires_grad_(False)
+
+
+def _apply_saved_strips(model, stripped, scales):
+    for index in stripped:
+        scale = scales[int(index)]
+        layer = model.model.layers[int(index)]
+        for norm in (layer.input_layernorm, layer.post_attention_layernorm):
+            _bind_stripped_norm(norm, scale)
+
+
+def _strip_norms(model, bank_unused, step, done, scales, store, generator, device):
     del bank_unused
     layers = len(model.model.layers)
     interval = 300_000 // layers
@@ -181,20 +206,14 @@ def _strip_norms(model, bank_unused, step, done, store, generator, device):
             probe = model.model.embed_tokens(inputs.to(device))
             frozen = probe.float().pow(2).mean().sqrt().clamp_min(1e-6)
         for norm in (layer.input_layernorm, layer.post_attention_layernorm):
-            weight = norm.weight.detach().clone()
-            scale = frozen.detach()
-
-            def forward(x, weight=weight, scale=scale):
-                return x * (weight / scale)
-
-            norm.forward = forward
-            norm.weight.requires_grad_(False)
+            _bind_stripped_norm(norm, frozen)
+        scales[int(index)] = frozen.detach().cpu()
         updated.append(index)
         log_line(f"PROGRESS smol_norm_strip layer={index} step={step}")
     return updated
 
 
-def _save(path, model, optimizer, generator, bank, step, pulses, stripped):
+def _save(path, model, optimizer, generator, bank, step, pulses, stripped, scales):
     payload = {
         "step": step,
         "model": model.state_dict(),
@@ -202,7 +221,8 @@ def _save(path, model, optimizer, generator, bank, step, pulses, stripped):
         "generator": generator.get_state(),
         "bank": [{key: value for key, value in masks.items() if torch.is_tensor(value)} for masks in bank],
         "pulses": pulses,
-        "stripped": stripped,
+        "stripped": list(stripped),
+        "strip_scales": {int(key): value.detach().cpu() for key, value in scales.items()},
     }
     temporary = path.with_suffix(".pt.tmp")
     torch.save(payload, temporary)
@@ -237,6 +257,7 @@ def train():
     step = 0
     pulses = []
     stripped = []
+    scales = {}
     last = folder / "last.pt"
     if last.exists():
         checkpoint = torch.load(last, map_location=device, weights_only=False)
@@ -248,6 +269,10 @@ def train():
         step = int(checkpoint["step"])
         pulses = list(checkpoint["pulses"])
         stripped = list(checkpoint["stripped"])
+        scales = {int(key): value for key, value in (checkpoint.get("strip_scales") or {}).items()}
+        if stripped and not scales:
+            raise SystemExit("arm5 checkpoint lists stripped norms but has no saved scales")
+        _apply_saved_strips(model, stripped, scales)
         log_line(f"PROGRESS resume arm5 step={step}")
     total = 300_000
     microbatch = 2
@@ -257,7 +282,7 @@ def train():
     peak = memory_mib()
     last_loss = 0.0
     while step < total:
-        stripped = _strip_norms(model, bank, step, stripped, store, generator, device)
+        stripped = _strip_norms(model, bank, step, stripped, scales, store, generator, device)
         rate = learning_rate(step, total, 2000, 3e-4, 3e-5)
         for group in optimizer.param_groups:
             group["lr"] = rate
@@ -293,14 +318,23 @@ def train():
             peak = max(peak, used)
             log_line(f"STEP {step}/{total} loss={last_loss:.6f} ce={last_loss:.6f} vram_mb={used:.0f} nan={0 if finite else 1}")
         if not finite:
-            _save(last, model, optimizer, generator, bank, step, pulses, stripped)
+            _save(last, model, optimizer, generator, bank, step, pulses, stripped, scales)
             raise SystemExit(1)
         if step % 1000 == 0:
-            _save(last, model, optimizer, generator, bank, step, pulses, stripped)
+            _save(last, model, optimizer, generator, bank, step, pulses, stripped, scales)
         if step % 10 == 0:
             enforce_guard()
-    _save(last, model, optimizer, generator, bank, step, pulses, stripped)
-    torch.save({"step": step, "model": model.state_dict(), "bank": [{k: v for k, v in m.items() if torch.is_tensor(v)} for m in bank]}, folder / "weights_final.pt")
+    _save(last, model, optimizer, generator, bank, step, pulses, stripped, scales)
+    torch.save(
+        {
+            "step": step,
+            "model": model.state_dict(),
+            "bank": [{k: v for k, v in m.items() if torch.is_tensor(v)} for m in bank],
+            "stripped": list(stripped),
+            "strip_scales": {int(key): value.detach().cpu() for key, value in scales.items()},
+        },
+        folder / "weights_final.pt",
+    )
     elapsed = time.perf_counter() - started
     payload = {
         "run_id": "arm5",
@@ -396,6 +430,11 @@ def evaluate():
     model.load_state_dict(checkpoint["model"])
     bank = _install(model)
     _restore_bank(bank, checkpoint["bank"])
+    stripped = list(checkpoint.get("stripped") or [])
+    scales = {int(key): value for key, value in (checkpoint.get("strip_scales") or {}).items()}
+    if stripped and not scales:
+        raise SystemExit("arm5 weights list stripped norms but have no saved scales")
+    _apply_saved_strips(model, stripped, scales)
     model.eval()
     rows = []
     with (DATA / "ifeval_local.jsonl").open(encoding="utf-8") as handle:

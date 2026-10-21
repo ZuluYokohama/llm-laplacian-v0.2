@@ -98,6 +98,7 @@ def select_peripheral(scores, alive, quota):
 
 def suzuki_recalibrate(down, sigma, survivors, tau):
     """W_out[:, J] <- (W_out @ Sigma[:, J] (Sigma_JJ + tau I)^{-1})."""
+    sigma = sigma.detach().float()
     if survivors.numel() == 0:
         return {"tau": tau, "solved": False}
     block = sigma[survivors][:, survivors]
@@ -109,11 +110,11 @@ def suzuki_recalibrate(down, sigma, survivors, tau):
     except RuntimeError:
         solved = torch.linalg.solve(ridge + 1e-2 * eye, cross.transpose(0, 1)).transpose(0, 1)
         tau = tau + 1e-2
-    updated = down.weight.detach() @ solved
+    updated = down.weight.detach().float() @ solved
     with torch.no_grad():
-        rebuilt = torch.zeros_like(down.weight)
+        rebuilt = torch.zeros(down.weight.shape, device=down.weight.device, dtype=torch.float32)
         rebuilt[:, survivors] = updated
-        down.weight.copy_(rebuilt)
+        down.weight.copy_(rebuilt.to(dtype=down.weight.dtype))
     info = float(torch.trace(sigma - solved @ cross.transpose(0, 1)).abs().item())
     return {"tau": tau, "solved": True, "info_trace": info, "survivors": int(survivors.numel())}
 
@@ -202,7 +203,7 @@ def resistance_sketch(weight, mask, eps, batch_columns, log_prefix):
         return torch.zeros(n_dst, n_src, device=weight.device, dtype=torch.float32), 0
     dst_index = live_dst.nonzero(as_tuple=False).flatten()
     src_index = live_src.nonzero(as_tuple=False).flatten()
-    reduced = conduct[dst_index][:, src_index]
+    reduced = conduct[dst_index][:, src_index].float()
     k = jl_dimension(max(n_live, 2), eps)
     generator = torch.Generator(device="cpu")
     generator.manual_seed(n_live * 10007 + k)

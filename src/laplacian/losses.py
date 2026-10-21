@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import torch
 
+from laplacian.culling import fiedler_from_adjacency
 from laplacian.operators_torch import fractional_matrix
 
 
@@ -27,31 +28,14 @@ def _quadratic(lap, features):
     return torch.trace(mixed)
 
 
-def _lambda2(adjacency, steps=15):
-    degree = adjacency.sum(dim=1)
-    inv = torch.zeros_like(degree)
-    positive = degree > 0
-    inv[positive] = degree[positive].rsqrt()
-    normal = inv[:, None] * adjacency * inv[None, :]
-    eye = torch.eye(adjacency.shape[0], device=adjacency.device, dtype=adjacency.dtype)
+def _lambda2(adjacency, steps=30):
+    """Smallest nonzero eigenvalue of the normalized Laplacian.
 
-    def matvec(vector):
-        return vector - normal @ vector
-
-    v1 = degree.clamp_min(0).sqrt()
-    v1 = v1 / v1.norm().clamp_min(1e-8)
-    vector = torch.linspace(-1.0, 1.0, adjacency.shape[0], device=adjacency.device, dtype=adjacency.dtype)
-    vector = vector - torch.dot(vector, v1) * v1
-    vector = vector / vector.norm().clamp_min(1e-8)
-    for _step in range(steps):
-        image = matvec(vector)
-        image = image - torch.dot(image, v1) * v1
-        norm = image.norm()
-        if float(norm) < 1e-8:
-            return image.new_zeros(())
-        vector = image / norm
-    image = matvec(vector)
-    return torch.dot(vector, image).clamp_min(0)
+    Plain power iteration on L returns the spectral radius. The Dirichlet
+    band needs λ2, so this uses the same ||L|| I - L shift as the cull.
+    """
+    _vector, rayleigh, _degenerate = fiedler_from_adjacency(adjacency.float(), steps=steps)
+    return torch.tensor(rayleigh, device=adjacency.device, dtype=torch.float32).clamp_min(0)
 
 
 def _token_energy(states, affinity):

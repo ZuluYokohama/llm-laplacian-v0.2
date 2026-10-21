@@ -17,6 +17,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+for _stream in (sys.stdout, sys.stderr):
+    _reconfigure = getattr(_stream, "reconfigure", None)
+    if _reconfigure is not None:
+        try:
+            _reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
 from laplacian.arms import all_configs, get_config  # noqa: E402
 from laplacian.runtime import apply_env, write_metrics  # noqa: E402
 
@@ -50,6 +58,23 @@ def heartbeat(line):
     path = RUNS / "heartbeat.txt"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(line + "\n", encoding="utf-8")
+
+
+DATA_MEMMAPS = (
+    "data/meta.json",
+    "data/tinystories_train.u16",
+    "data/tinystories_val.u16",
+    "data/tinystories_smol_train.u16",
+    "data/tinystories_smol_val.u16",
+)
+
+
+def data_files_ready():
+    for relative in DATA_MEMMAPS:
+        path = ROOT / relative
+        if not path.is_file() or path.stat().st_size <= 0:
+            return False
+    return True
 
 
 def metrics_state(path):
@@ -102,7 +127,10 @@ def stream_command(command):
     )
     assert proc.stdout is not None
     for line in proc.stdout:
-        print(line, end="", flush=True)
+        try:
+            print(line, end="", flush=True)
+        except UnicodeEncodeError:
+            print(line.encode("ascii", errors="replace").decode("ascii"), end="", flush=True)
     return proc.wait()
 
 
@@ -469,7 +497,10 @@ def main():
     for item in items:
         state = metrics_state(ROOT / item["metrics"])
         stale = item["id"] == "verify_reference" and reference_is_stale(item["metrics"])
-        if state["ok"] and not stale:
+        # The data metrics hash can be present on a clean checkout while the
+        # gitignored token memmaps are not. Skipping then fails the first train.
+        needs_memmaps = item["id"] == "data" and not data_files_ready()
+        if state["ok"] and not stale and not needs_memmaps:
             append_ledger(ledger_row(item, head, count, 0, state, True))
             print(f"SKIP {item['id']} sha256={state['sha256']}", flush=True)
             continue
