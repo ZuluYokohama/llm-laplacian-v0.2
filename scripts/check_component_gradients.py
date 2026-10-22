@@ -59,9 +59,24 @@ from laplacian.runtime import write_metrics
 from laplacian.schedule import gammas
 
 POST_IMPORT_SOURCES = source_hashes()
+_scripts = str(ROOT / "scripts")
+if _scripts not in sys.path:
+    sys.path.append(_scripts)
+import study_budget as budget
+
+LEDGER = ROOT / "runs/publication_study/budget.jsonl"
 
 
 def require_gpu():
+    """Admit CUDA only after an open canonical reservation on visible device 0."""
+    run_id = os.environ.get("STUDY_BUDGET_RUN_ID", "")
+    if (not run_id.strip()
+            or Path(os.environ.get("STUDY_BUDGET_LEDGER", "")).resolve() != LEDGER.resolve()
+            or os.environ.get("CUDA_VISIBLE_DEVICES") != "0"):
+        raise RuntimeError("CUDA benchmark requires the canonical study-budget wrapper and visible device0")
+    run = budget.accounting(budget.read_ledger(LEDGER)).get(run_id)
+    if run is None or run["settled"] or not run["launch_authorized"]:
+        raise RuntimeError("Component gate requires an actually launched open canonical reservation")
     return benchmark.admit_device("cuda:0")
 
 

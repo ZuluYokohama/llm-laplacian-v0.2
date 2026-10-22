@@ -20,18 +20,21 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 
 
-@pytest.mark.parametrize("bad", ["missing", "blank", "missing_ledger", "wrong_ledger"])
+@pytest.mark.parametrize("bad", ["missing", "blank", "missing_ledger", "wrong_ledger", "device1"])
 def test_budget_admission_precedes_every_cuda_query(monkeypatch, bad):
     monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "fixture")
     monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(ROOT / "runs/publication_study/budget.jsonl"))
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
     if bad == "missing":
         monkeypatch.delenv("STUDY_BUDGET_RUN_ID")
     elif bad == "blank":
         monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "  ")
     elif bad == "missing_ledger":
         monkeypatch.delenv("STUDY_BUDGET_LEDGER")
-    else:
+    elif bad == "wrong_ledger":
         monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(ROOT / "wrong.jsonl"))
+    else:
+        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "1")
     monkeypatch.setattr(torch.cuda, "is_available", lambda: pytest.fail("CUDA queried before budget admission"))
     with pytest.raises(RuntimeError, match="canonical study-budget"):
         gate.require_gpu()
@@ -41,10 +44,27 @@ def test_budget_admission_precedes_every_cuda_query(monkeypatch, bad):
 def test_wrong_device_or_precision_is_rejected_with_cpu_fakes(monkeypatch, name, bf16, message):
     monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "fixture")
     monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(ROOT / "runs/publication_study/budget.jsonl"))
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    monkeypatch.setattr(gate.budget, "read_ledger", lambda path: [])
+    monkeypatch.setattr(gate.budget, "accounting", lambda rows: {
+        "fixture": {"settled": False, "launch_authorized": True}})
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "get_device_name", lambda device: name)
     monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: bf16)
     with pytest.raises(RuntimeError, match=message):
+        gate.require_gpu()
+
+
+@pytest.mark.parametrize("state", [None, {"settled": True, "launch_authorized": True},
+                                  {"settled": False, "launch_authorized": False}])
+def test_env_strings_cannot_replace_active_reservation(monkeypatch, state):
+    monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "fixture")
+    monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(ROOT / "runs/publication_study/budget.jsonl"))
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    monkeypatch.setattr(gate.budget, "read_ledger", lambda path: [])
+    monkeypatch.setattr(gate.budget, "accounting", lambda rows: {} if state is None else {"fixture": state})
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: pytest.fail("CUDA before reservation admission"))
+    with pytest.raises(RuntimeError, match="actually launched open canonical reservation"):
         gate.require_gpu()
 
 

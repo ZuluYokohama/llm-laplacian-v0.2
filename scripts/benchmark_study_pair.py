@@ -50,6 +50,7 @@ from laplacian import train as training
 from laplacian.device import GUARD_MIB
 from laplacian.operators_torch import fractional_policy
 from laplacian.reproducibility import config_hash, ensure_finite_state, environment, restore_rng_state, rng_state
+from laplacian.schedule import gammas
 
 KIND = "exploratory_timing_pair_v1"
 BOUNDARY = "synchronized-zero-grad-forward-loss-finite-backward-accumulation-clipping-adamw-v1"
@@ -582,6 +583,11 @@ def validate_pair(receipts, plan):
                 "local_sampler_sha256_before_override", "local_sampler_sha256_after_preparation"):
         if receipts[0][key] != receipts[1][key]:
             raise ValueError(f"Pair state or method differs: {key}")
+    # gammas, not penalty_weights: equal phase-1 weights must not pass a later schedule.
+    expected_weights = {key: float(gammas(plan["penalty_step"])[key])
+                        for key in ("manifold", "fractional", "hyper", "dirichlet")}
+    if any(item["spectral_weights"] != expected_weights for item in receipts):
+        raise ValueError("Spectral weights differ from the configured penalty schedule")
     return {item["implementation"]: statistics.mean(row["seconds"] for row in item["updates"] if not row["warmup"])
             for item in receipts}
 

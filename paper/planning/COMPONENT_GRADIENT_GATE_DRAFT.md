@@ -56,7 +56,7 @@ They are not justified as statistically negligible changes to training quality.
 | Check, separately for every active component | Required result |
 |---|---|
 | Scalar value | `abs(candidate-reference) <= 1e-5 + 0.005*abs(reference)` |
-| Nonzero reference gradient vector | `||candidate-reference||_2 / ||reference||_2 <= 0.025`, with **no epsilon or absolute floor** |
+| Nonzero reference gradient vector | `‖candidate-reference‖_2 / ‖reference‖_2 <= 0.025`, with **no epsilon or absolute floor** |
 | Exactly zero reference gradient vector | Exactly zero candidate norm; no relative ratio is defined |
 | Each parameter tensor | Maximum absolute error `<= 1e-5 + 0.025*max(abs(reference_tensor))`; an exactly zero reference tensor requires exactly zero candidate tensor |
 | Connectivity, shape and finiteness | Identical parameter names/shapes and `None` versus tensor semantics; every scalar/gradient finite |

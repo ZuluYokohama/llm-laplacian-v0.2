@@ -370,7 +370,9 @@ def fake_receipt(plan, implementation):
                  batch_manifest=plan["batch_manifest"], source_checkpoint=plan["checkpoint"], execution_id=implementation,
                  restored_state_sha256="a" * 64, prepared_state_sha256="b" * 64, environment={"synthetic": True},
                  cudnn_allow_tf32=True, optimizer_parameter_groups=[{"lr": .0000123}], source_step=1,
-                 spectral_weights={"synthetic": 1.}, timer_boundary=pair.BOUNDARY,
+                 spectral_weights={key: float(pair.gammas(plan["penalty_step"])[key])
+                                   for key in ("manifold", "fractional", "hyper", "dirichlet")},
+                 timer_boundary=pair.BOUNDARY,
                  local_sampler_sha256_before_override="c" * 64, local_sampler_sha256_after_preparation="d" * 64)
     return value
 
@@ -388,6 +390,17 @@ def test_pair_mismatch_or_false_acceptance_fails(fixture, mutation, message):
     receipts = [fake_receipt(plan, name) for name in ("baseline", "optimized")]
     mutation(receipts)
     with pytest.raises(ValueError, match=message):
+        pair.validate_pair(receipts, plan)
+
+
+def test_matching_phase1_weights_fail_when_plan_uses_phase_135000(fixture):
+    _, plan = prepare(fixture, name="weights", phase=135000)
+    receipts = [fake_receipt(plan, name) for name in ("baseline", "optimized")]
+    phase1 = {key: float(pair.gammas(0)[key]) for key in ("manifold", "fractional", "hyper", "dirichlet")}
+    assert receipts[0]["spectral_weights"] == receipts[1]["spectral_weights"] != phase1
+    for item in receipts:
+        item["spectral_weights"] = phase1
+    with pytest.raises(ValueError, match="penalty schedule"):
         pair.validate_pair(receipts, plan)
 
 
