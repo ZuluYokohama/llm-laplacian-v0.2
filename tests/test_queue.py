@@ -358,11 +358,72 @@ def _process_alive(pid):
             return code.value == 259
         finally:
             kernel.CloseHandle(handle)
+    if sys.platform == "linux":
+        try:
+            # comm can contain spaces and parentheses; state follows its last ')'.
+            identity, fields = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)
+            stat_pid, _ = identity.split(" (", 1)
+            state, parent_pid, *_ = fields.split()
+            if int(stat_pid) == pid and state == "Z" and int(parent_pid) >= 0:
+                return False  # Exited but not yet reaped; kill(pid, 0) still succeeds.
+        except (OSError, UnicodeError, ValueError):
+            pass  # Missing/unreadable/malformed proc data: retain the kill check.
     try:
         os.kill(pid, 0)
         return True
     except ProcessLookupError:
         return False
+
+
+@pytest.fixture
+def posix_process_probe(monkeypatch):
+    calls = []
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "os", SimpleNamespace(
+        name="posix", kill=lambda pid, sig: calls.append((pid, sig))))
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    return calls
+
+
+@pytest.mark.parametrize("state,expected", [("Z", False), ("S", True)])
+def test_process_alive_checks_linux_state_after_comm(monkeypatch, posix_process_probe, state, expected):
+    def stat(path, **kwargs):
+        assert path.as_posix() == "/proc/321/stat"
+        return f"321 (worker ) with spaces) {state} 1 2 3\n"
+
+    monkeypatch.setattr(Path, "read_text", stat)
+    assert _process_alive(321) is expected
+    assert posix_process_probe == ([(321, 0)] if expected else [])
+
+
+@pytest.mark.parametrize("stat_result", [
+    FileNotFoundError(), PermissionError(), "invalid stat", "321 (worker) Z",
+])
+@pytest.mark.parametrize("alive", [False, True])
+def test_process_alive_falls_back_for_unavailable_linux_stat(
+    monkeypatch, posix_process_probe, stat_result, alive,
+):
+    def stat(path, **kwargs):
+        if isinstance(stat_result, Exception):
+            raise stat_result
+        return stat_result
+
+    def kill(pid, sig):
+        posix_process_probe.append((pid, sig))
+        if not alive:
+            raise ProcessLookupError
+
+    monkeypatch.setattr(Path, "read_text", stat)
+    monkeypatch.setattr(os, "kill", kill)
+    assert _process_alive(321) is alive
+    assert posix_process_probe == [(321, 0)]
+
+
+def test_process_alive_nonlinux_uses_kill_without_proc(monkeypatch, posix_process_probe):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(Path, "read_text", lambda *args, **kwargs: pytest.fail("Non-Linux proc read"))
+    assert _process_alive(321)
+    assert posix_process_probe == [(321, 0)]
 
 
 def test_timeout_stops_live_child_and_handshaken_grandchild(queue, tmp_path):
