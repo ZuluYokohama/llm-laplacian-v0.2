@@ -149,7 +149,12 @@ def _dirichlet(model, config, store, device):
     inputs, _targets = store.batch(4, generator)
     with torch.no_grad():
         outputs = model(inputs.to(device))
-        penalties = spectral_penalties(outputs, layers_0index(config), float(config["exponent"]))
+        penalties = spectral_penalties(
+            outputs,
+            layers_0index(config),
+            float(config["exponent"]),
+            weights={"manifold": 0.0, "fractional": 0.0, "hyper": 0.0, "dirichlet": 1.0},
+        )
     return float(penalties["dirichlet"].item())
 
 

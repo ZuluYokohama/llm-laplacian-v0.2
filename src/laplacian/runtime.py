@@ -31,7 +31,11 @@ def apply_env():
 
 
 def write_metrics(path, payload):
-    """Write JSON and a sibling sha256. The hash is of the file bytes."""
+    """Write JSON and a sibling sha256 of LF-normalized UTF-8 text.
+
+    Windows text output may contain CRLF bytes. Historical sidecars hash the
+    logical LF text, not those raw on-disk bytes; retain that convention.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"

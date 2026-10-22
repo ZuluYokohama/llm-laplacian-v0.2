@@ -1,6 +1,8 @@
-"""PyTorch twins of the receipted reference operators.
+"""PyTorch counterparts of the receipted reference operators.
 
 Toy fixtures are computed in float64. Integer nilpotency stays exact.
+The fractional operator uses the versioned boundary policy documented in
+paper/planning/FRACTIONAL_POLICY.md; its smoothing is not a reference receipt.
 """
 
 from __future__ import annotations
@@ -102,11 +104,116 @@ def manifold_penalty(features, lap_k):
     return form / (count * count)
 
 
-def fractional_matrix(lap, exponent):
+FRACTIONAL_POLICY_VERSION = "c1-quadratic-cap-frechet-v1"
+FRACTIONAL_CUTOFF = 1e-4
+FRACTIONAL_NEGATIVE_TOLERANCE = 1e-6
+
+
+def fractional_policy():
+    """Serializable identity for future runs sharing the repaired operator."""
+    return {
+        "version": FRACTIONAL_POLICY_VERSION,
+        "cutoff": FRACTIONAL_CUTOFF,
+        "negative_spectrum_relative_tolerance": FRACTIONAL_NEGATIVE_TOLERANCE,
+        "exponent_domain": "0 < s <= 1",
+        "gradient_order": 1,
+    }
+
+
+def _fractional_values(values, exponent, cutoff):
+    """C1 scalar power: exact above cutoff, quadratic below, tangent below zero."""
+    slope = (2.0 - exponent) * cutoff ** (exponent - 1.0)
+    curvature = (exponent - 1.0) * cutoff ** (exponent - 2.0)
+    small = values.clamp(0, cutoff)
+    polynomial = slope * small + curvature * small.square()
+    powered = values.clamp_min(cutoff).pow(exponent)
+    return torch.where(values < 0, slope * values, torch.where(values < cutoff, polynomial, powered))
+
+
+def _fractional_divided_difference(values, exponent, cutoff):
+    """Stable secants, including the analytic derivative on repeated eigenvalues.
+
+    Integrate the derivative over each scalar branch instead of subtracting
+    nearly equal function values. This also handles pairs straddling a join.
+    """
+    left = torch.minimum(values[:, None], values[None, :])
+    right = torch.maximum(values[:, None], values[None, :])
+    gap = right - left
+    slope = (2.0 - exponent) * cutoff ** (exponent - 1.0)
+    curvature = (exponent - 1.0) * cutoff ** (exponent - 2.0)
+
+    negative = slope * (right.clamp_max(0) - left.clamp_max(0))
+    small_left, small_right = left.clamp(0, cutoff), right.clamp(0, cutoff)
+    polynomial = (small_right - small_left) * (slope + curvature * (small_left + small_right))
+    large_left, large_right = left.clamp_min(cutoff), right.clamp_min(cutoff)
+    relative_gap = (large_right - large_left) / large_left
+    powered = large_left.pow(exponent) * torch.expm1(exponent * torch.log1p(relative_gap))
+
+    secant = (negative + polynomial + powered) / torch.where(gap > 0, gap, torch.ones_like(gap))
+    derivative = torch.where(
+        left < 0,
+        torch.full_like(left, slope),
+        torch.where(left < cutoff, slope + 2.0 * curvature * left, exponent * left.clamp_min(cutoff).pow(exponent - 1.0)),
+    )
+    return torch.where(gap > 0, secant, derivative)
+
+
+class _FractionalMatrix(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, lap, exponent, cutoff):
+        # Autocast must not turn the spectral reconstruction/backward into BF16.
+        with torch.autocast(device_type=lap.device.type, enabled=False):
+            if not bool(torch.isfinite(lap).all()):
+                raise ValueError("fractional_matrix requires a finite matrix")
+            values, vectors = torch.linalg.eigh(lap)
+            scale = values.abs().amax().clamp_min(1.0)
+            if bool((values < -FRACTIONAL_NEGATIVE_TOLERANCE * scale).any()):
+                raise ValueError("fractional_matrix requires a positive semidefinite matrix within the documented roundoff tolerance")
+            ctx.exponent, ctx.cutoff = exponent, cutoff
+            ctx.save_for_backward(values, vectors)
+            if exponent == 1.0:
+                return lap.clone()
+            powered = _fractional_values(values, exponent, cutoff)
+            return (vectors * powered) @ vectors.transpose(0, 1)
+
+    @staticmethod
+    @torch.autograd.function.once_differentiable
+    def backward(ctx, grad_output):
+        values, vectors = ctx.saved_tensors
+        with torch.autocast(device_type=grad_output.device.type, enabled=False):
+            gradient = 0.5 * (grad_output + grad_output.transpose(0, 1))
+            if ctx.exponent == 1.0:
+                return gradient, None, None
+            divided = _fractional_divided_difference(values, ctx.exponent, ctx.cutoff)
+            local = vectors.transpose(0, 1) @ gradient @ vectors
+            result = vectors @ (divided * local) @ vectors.transpose(0, 1)
+            return 0.5 * (result + result.transpose(0, 1)), None, None
+
+
+def fractional_matrix(lap, exponent, *, cutoff=FRACTIONAL_CUTOFF):
+    """C1-regularized symmetric PSD matrix power with a stable first derivative.
+
+    This is a versioned objective change near zero, not a claim that the
+    unregularized fractional power has a finite derivative there. Values at
+    eigenvalues >= cutoff are unchanged. The matrix is explicitly symmetrized;
+    materially negative spectra are rejected. Half/BF16 inputs promote to FP32.
+    The exponent/cutoff are fixed hyperparameters; double backward is unsupported.
+    """
+    exponent, cutoff = float(exponent), float(cutoff)
+    if not math.isfinite(exponent) or not 0.0 < exponent <= 1.0:
+        raise ValueError("fractional_matrix requires 0 < exponent <= 1")
+    if not math.isfinite(cutoff) or cutoff <= 0.0:
+        raise ValueError("fractional_matrix cutoff must be finite and positive")
     lap = lap if torch.is_tensor(lap) else _tensor(lap)
-    values, vectors = torch.linalg.eigh(lap)
-    powered = torch.where(values > 0, values.clamp_min(0).pow(exponent), torch.zeros_like(values))
-    return (vectors * powered) @ vectors.transpose(0, 1)
+    if lap.ndim != 2 or lap.shape[0] != lap.shape[1] or lap.shape[0] == 0:
+        raise ValueError("fractional_matrix requires a nonempty square matrix")
+    if not lap.is_floating_point():
+        raise TypeError("fractional_matrix requires a real floating-point matrix")
+    with torch.autocast(device_type=lap.device.type, enabled=False):
+        if lap.dtype not in (torch.float32, torch.float64):
+            lap = lap.float()
+        symmetric = 0.5 * (lap + lap.transpose(0, 1))
+        return _FractionalMatrix.apply(symmetric, exponent, cutoff)
 
 
 def fractional_penalty(lap, features, exponent, lam=1.0):

@@ -21,6 +21,7 @@ from laplacian.runtime import apply_env, write_metrics  # noqa: E402
 
 SOURCES = ROOT / "paper" / "sources"
 FUNDING = ROOT / "paper" / "funding"
+MAX_SOURCE_BYTES = 50 * 1024 * 1024
 
 SEEDS = [
     {
@@ -125,8 +126,14 @@ def retrieve(url):
         with urllib.request.urlopen(request, timeout=60) as response:
             status = getattr(response, "status", 200)
             final = response.geturl()
-            body = response.read(120_000)
-        return {"ok": status < 400, "status": status, "url": final, "text": body.decode("utf-8", errors="replace")}
+            body = response.read(MAX_SOURCE_BYTES + 1)
+            content_type = response.headers.get("Content-Type", "application/octet-stream")
+        if len(body) > MAX_SOURCE_BYTES:
+            raise ValueError("source exceeds byte limit; refusing a truncated citation")
+        pdf = body.startswith(b"%PDF-")
+        return {"ok": status < 400, "status": status, "url": final, "body": body,
+                "content_type": content_type, "pdf": pdf,
+                "text": "" if pdf else body.decode("utf-8", errors="replace")}
     except urllib.error.HTTPError as exc:
         return {"ok": False, "status": exc.code, "url": url, "error": str(exc)[:300], "text": ""}
     except Exception as exc:
@@ -147,15 +154,17 @@ def keep_local(seed):
         return None
     data = path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
-    stub = f"local_source\npath={path}\nbytes={len(data)}\nsha256={digest}\n"
-    (SOURCES / f"{seed['key']}.txt").write_text(stub, encoding="utf-8")
+    destination = SOURCES / f"{seed['key']}{path.suffix or '.bin'}"
+    destination.write_bytes(data)
     return {
         "title": seed["title"],
         "label": seed["label"],
         "local_source": True,
         "path": str(path),
         "sha256": digest,
-        "source_file": f"paper/sources/{seed['key']}.txt",
+        "source_file": destination.relative_to(ROOT).as_posix(),
+        "source_sha256": digest,
+        "citation_support_reviewed": False,
     }
 
 
@@ -174,11 +183,13 @@ def main():
         print(f"KEEP local {seed['key']}", flush=True)
     for seed in SEEDS:
         page = retrieve(seed["url"])
-        if not page["ok"] or len(page["text"]) < 200:
+        if not page["ok"] or len(page.get("body", b"")) < 200:
             dropped.append({"key": seed["key"], "url": seed["url"], "status": page.get("status"), "error": page.get("error")})
             print(f"DROP {seed['key']} status={page.get('status')}", flush=True)
             continue
-        (SOURCES / f"{seed['key']}.txt").write_text(page["text"][:80_000], encoding="utf-8")
+        extension = ".pdf" if page["pdf"] else ".html" if "html" in page["content_type"] else ".txt"
+        destination = SOURCES / f"{seed['key']}{extension}"
+        destination.write_bytes(page["body"])
         references[seed["key"]] = {
             "title": page_title(page["text"], seed["title"]),
             "year": seed.get("year"),
@@ -187,7 +198,10 @@ def main():
             "retrieved_url": page["url"],
             "doi": seed.get("doi"),
             "local_source": False,
-            "source_file": f"paper/sources/{seed['key']}.txt",
+            "source_file": destination.relative_to(ROOT).as_posix(),
+            "source_sha256": hashlib.sha256(page["body"]).hexdigest(),
+            "content_type": page["content_type"],
+            "citation_support_reviewed": False,
         }
         print(f"KEEP {seed['key']}", flush=True)
     funding = []

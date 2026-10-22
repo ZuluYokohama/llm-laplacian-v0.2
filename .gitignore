@@ -7,6 +7,9 @@ __pycache__/
 *.safetensors
 data/*.u16
 data/*.bin
+data/publication_v1/*.jsonl
+data/publication_v1/**/*.jsonl
+data/publication_v1/**/*.u16
 runs/queue.log
 runs/frozen.log
 runs/heartbeat.txt

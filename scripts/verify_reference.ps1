@@ -1,12 +1,16 @@
 # Run each reference operator through jovin-harness inside WSL distro JovinHarness.
 # Console lines are written as the WSL process starts. They are not held until the end.
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 $env:JOVIN_HARNESS_RUNTIME = "wsl:JovinHarness"
 if (-not $env:JOVIN_HARNESS_TIMEOUT_S) {
     $env:JOVIN_HARNESS_TIMEOUT_S = "30"
 }
 $root = Split-Path -Parent $PSScriptRoot
-$exe = "D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe"
+$exe = $env:JOVIN_HARNESS_EXE
+if (-not $exe) {
+    $discovered = Get-Command jovin-harness -ErrorAction SilentlyContinue
+    $exe = if ($discovered) { $discovered.Source } else { "D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe" }
+}
 $wsl = Join-Path $env:SystemRoot "System32\wsl.exe"
 $logDir = Join-Path $root "reference\receipts"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -18,8 +22,20 @@ function Write-Console([string]$line) {
 }
 Write-Console "WSL initiate: $wsl --distribution JovinHarness --exec docker version"
 & $wsl --distribution JovinHarness --exec docker version 2>&1 | ForEach-Object { Write-Console "wsl-docker: $_" }
+if ($LASTEXITCODE -ne 0) {
+    Write-Console "FAILED: WSL Docker preflight"
+    exit 1
+}
 Write-Console "WSL initiate: $exe doctor"
-& $exe doctor 2>&1 | ForEach-Object { Write-Console "jovin-doctor: $_" }
+$doctorOutput = & $exe doctor 2>&1 | Out-String
+$doctorExit = $LASTEXITCODE
+Write-Console "jovin-doctor: $doctorOutput"
+$doctor = $null
+try { $doctor = $doctorOutput | ConvertFrom-Json } catch { $doctor = $null }
+if ($doctorExit -ne 0 -or $null -eq $doctor -or $doctor.ready -isnot [bool] -or $doctor.ready -ne $true) {
+    Write-Console "FAILED: jovin doctor is not ready"
+    exit 1
+}
 $names = @(
     "boundary", "laplacian", "manifold", "fractional", "hypergraph",
     "resistance", "fiedler", "sparsify", "suzuki", "schedule", "composite", "symplectic"
@@ -41,7 +57,7 @@ foreach ($name in $names) {
     Add-Content -Path (Join-Path $logDir "verify-$name.json") -Encoding utf8 -Value $output
     $parsed = $null
     try { $parsed = $output | ConvertFrom-Json } catch { $parsed = $null }
-    if ($null -eq $parsed -or -not $parsed.passed -or $parsed.integrity -ne "process_isolated") {
+    if ($null -eq $parsed -or $parsed.passed -isnot [bool] -or $parsed.passed -ne $true -or $parsed.integrity -ne "process_isolated") {
         $failed = $true
         $status = if ($parsed) { [string]$parsed.status } else { "unparsed" }
         $block += "| $name | $status | false |  |  |  |"
@@ -58,7 +74,15 @@ foreach ($name in $names) {
 }
 Add-Content -Path $log -Encoding utf8 -Value ($block -join "`r`n")
 Write-Console "WSL initiate: $exe receipts verify"
-& $exe receipts verify 2>&1 | ForEach-Object { Write-Console "jovin-chain: $_" }
+$chainOutput = & $exe receipts verify 2>&1 | Out-String
+$chainExit = $LASTEXITCODE
+Write-Console "jovin-chain: $chainOutput"
+$chain = $null
+try { $chain = $chainOutput | ConvertFrom-Json } catch { $chain = $null }
+if ($chainExit -ne 0 -or $null -eq $chain -or $chain.valid -isnot [bool] -or $chain.valid -ne $true) {
+    $failed = $true
+    Write-Console "FAILED: jovin receipt chain is not valid"
+}
 if ($failed) {
     Write-Console "FAILED: one or more reference modules were culled"
     exit 1

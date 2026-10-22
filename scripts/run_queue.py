@@ -8,10 +8,18 @@ source metrics. runs/QUEUE_DONE is written only after the last item.
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
 import os
+import math
+import queue as output_queue
+import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
+import codecs
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,10 +37,17 @@ from laplacian.arms import all_configs, get_config  # noqa: E402
 from laplacian.runtime import apply_env, write_metrics  # noqa: E402
 
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
-EXE = Path(r"D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe")
+EXE = Path(os.environ.get("JOVIN_HARNESS_EXE") or shutil.which("jovin-harness") or
+           r"D:\JovinHarness_Artifacts\environments\windows\Scripts\jovin-harness.exe")
 RUNS = ROOT / "runs"
 LEDGER = RUNS / "harness-ledger.jsonl"
 DONE = RUNS / "QUEUE_DONE"
+# Queue-level limits cover the Docker preflight and whole reference script,
+# beyond internal per-operation timeouts. Timeout cleanup has its own bounds;
+# stopping a Windows WSL client does not attest remote Linux process cleanup.
+HARNESS_CHECK_TIMEOUT_S = 120
+REFERENCE_GATE_TIMEOUT_S = 900
+CHILD_REAP_TIMEOUT_S = 5
 
 
 def child_env():
@@ -48,8 +63,9 @@ def child_env():
     env["TORCH_HOME"] = str(ROOT / "cache" / "torch")
     env["TOKENIZERS_PARALLELISM"] = "false"
     env["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    env["JOVIN_HARNESS_EXE"] = str(EXE)
     env["JOVIN_HARNESS_RUNTIME"] = "wsl:JovinHarness"
-    env["JOVIN_HARNESS_TIMEOUT_S"] = "30"
+    env.setdefault("JOVIN_HARNESS_TIMEOUT_S", "30")
     env.pop("PYTORCH_CUDA_ALLOC_CONF", None)
     return env
 
@@ -114,7 +130,108 @@ def json_document(text):
     return json.loads(text[start : end + 1])
 
 
-def stream_command(command):
+def _stop_timed_out_tree(proc):
+    """Bound teardown itself; uncertain cleanup never turns a timeout into pass."""
+    if os.name != "nt":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            print("Timeout process-group cleanup is uncertain", flush=True)
+    # On Windows proc is the dedicated real-Python helper. Its sole Job Object
+    # handle closes on process death, which kills its contained descendants.
+    if proc.poll() is None:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+    try:
+        proc.wait(timeout=CHILD_REAP_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        print("Timeout cleanup is uncertain: direct child did not exit within reap grace", flush=True)
+
+
+def contained_queue_command(request):
+    """Internal Windows helper; establish containment before any requested child.
+
+    This entry point never runs ordinary queue main, WSL preflight or GPU checks.
+    It also owns the deadline if the calling queue disappears unexpectedly.
+    """
+    from study_budget import windows_job
+    _job = windows_job()  # Non-inheritable handle; keep alive until helper exit.
+    remaining = request["deadline_monotonic"] - time.monotonic()
+    if remaining <= 0:
+        return 124
+    child = subprocess.Popen(request["command"], stdin=subprocess.DEVNULL, shell=False)
+    try:
+        return child.wait(timeout=max(0, request["deadline_monotonic"] - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        return 124  # Returning exits helper; the OS closes its job and tree.
+
+
+def _bounded_stream(command, timeout_s):
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError("Command timeout must be finite and positive")
+    deadline = time.monotonic() + timeout_s
+    options = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
+    actual_command = command
+    if os.name == "nt":
+        # Bypass Windows venv launcher shims so Popen.pid identifies the actual
+        # process holding the Job Object, not a launcher waiting for that process.
+        executable = getattr(sys, "_base_executable", sys.executable)
+        actual_command = [executable, str(Path(__file__).resolve()), "_contained_queue_command",
+                          json.dumps({"command": command, "deadline_monotonic": deadline})]
+    proc = subprocess.Popen(actual_command, cwd=str(ROOT), env=child_env(), stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, bufsize=0, **options)
+    assert proc.stdout is not None
+    chunks = output_queue.Queue(maxsize=64)
+    finished = object()
+
+    def read_pipe():
+        try:
+            while True:
+                block = os.read(proc.stdout.fileno(), 4096)
+                if not block:
+                    break
+                chunks.put(block)
+        except OSError as exc:
+            chunks.put(exc)
+        finally:
+            chunks.put(finished)
+
+    reader = threading.Thread(target=read_pipe, name="queue-command-output", daemon=True)
+    reader.start()
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout_s)
+            try:
+                block = chunks.get(timeout=remaining)
+            except output_queue.Empty as exc:
+                raise subprocess.TimeoutExpired(command, timeout_s) from exc
+            if block is finished:
+                print(decoder.decode(b"", final=True), end="", flush=True)
+                return proc.wait(timeout=max(0, deadline - time.monotonic()))
+            if isinstance(block, OSError):
+                raise block
+            print(decoder.decode(block), end="", flush=True)
+    except BaseException:
+        _stop_timed_out_tree(proc)
+        raise
+    finally:
+        reader.join(timeout=1)
+        # A detached descendant can keep a pipe open. Never wait unboundedly for
+        # its reader; timeout already fails the gate and reports uncertain cleanup.
+        if not reader.is_alive():
+            proc.stdout.close()
+
+
+def stream_command(command, *, timeout_s=None):
+    if timeout_s is not None:
+        return _bounded_stream(command, timeout_s)
     proc = subprocess.Popen(
         command,
         cwd=str(ROOT),
@@ -192,70 +309,100 @@ def gpu_is_busy():
 def preflight_wsl():
     wsl = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wsl.exe"
     print(f"WSL initiate: {wsl} --distribution JovinHarness --exec docker version", flush=True)
-    code = stream_command([str(wsl), "--distribution", "JovinHarness", "--exec", "docker", "version"])
+    try:
+        code = stream_command([str(wsl), "--distribution", "JovinHarness", "--exec", "docker", "version"],
+                              timeout_s=HARNESS_CHECK_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"WSL Docker preflight timed out after {HARNESS_CHECK_TIMEOUT_S} seconds; gate not completed") from exc
     if code != 0:
         raise SystemExit(code)
     print(f"WSL initiate: {EXE} doctor", flush=True)
-    proc = subprocess.run([str(EXE), "doctor"], capture_output=True, text=True, env=child_env(), check=False)
+    try:
+        proc = subprocess.run([str(EXE), "doctor"], capture_output=True, text=True,
+                              env=child_env(), check=False, timeout=HARNESS_CHECK_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"jovin doctor timed out after {HARNESS_CHECK_TIMEOUT_S} seconds") from exc
     print(proc.stdout, flush=True)
     if proc.stderr:
         print(proc.stderr, flush=True)
     report = json_document(proc.stdout)
-    if proc.returncode != 0 or not report.get("ready"):
+    if proc.returncode != 0 or report.get("ready") is not True:
         raise SystemExit("jovin doctor is not ready")
+    return verify_receipt_chain()
+
+
+def verify_receipt_chain():
     print(f"WSL initiate: {EXE} receipts verify", flush=True)
-    chain = subprocess.run(
-        [str(EXE), "receipts", "verify"],
-        capture_output=True,
-        text=True,
-        env=child_env(),
-        check=False,
-    )
+    try:
+        chain = subprocess.run(
+            [str(EXE), "receipts", "verify"],
+            capture_output=True,
+            text=True,
+            env=child_env(),
+            check=False,
+            timeout=HARNESS_CHECK_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"jovin receipts verify timed out after {HARNESS_CHECK_TIMEOUT_S} seconds") from exc
     print(chain.stdout, flush=True)
     if chain.stderr:
         print(chain.stderr, flush=True)
     receipt = json_document(chain.stdout)
-    if chain.returncode != 0 or not receipt.get("valid"):
+    if chain.returncode != 0 or receipt.get("valid") is not True:
         raise SystemExit("jovin receipt chain is not valid")
     return receipt.get("head_sha256"), receipt.get("count")
 
 
-INVARIANT_SOURCES = (
-    "src/laplacian/host_invariants.py",
-    "src/laplacian/losses.py",
-    "src/laplacian/train.py",
-    "src/laplacian/culling.py",
-    "reference/operators/fiedler.py",
-)
+GATE_SOURCES = {
+    "pytest": ("src/**/*.py", "scripts/**/*.py", "tests/**/*.py", "reference/operators/**/*.py", "reference/tests/**/*.py",
+               "pyproject.toml", "scripts/verify_reference.ps1", "paper/fetch_references.py", "paper/planning/FRACTIONAL_POLICY.md",
+               "runs/optimization_20261021/baseline_losses.py", "paper/planning/timing_schedule.json"),
+    "verify_reference": ("reference/operators/**/*.py", "reference/tests/**/*.py", "scripts/verify_reference.ps1", "scripts/study_budget.py"),
+    "host_invariants": ("src/**/*.py", "reference/operators/fiedler.py"),
+    "mcp_stdio": ("src/**/*.py",),
+}
 
 
-def source_newer_than(metrics, relatives):
-    metrics_path = ROOT / metrics
-    if not metrics_path.exists():
-        return True
-    stamp = metrics_path.stat().st_mtime
-    for relative in relatives:
-        path = ROOT / relative
-        if path.is_file() and path.stat().st_mtime > stamp:
-            return True
-    return False
+def gate_source_snapshot(item):
+    """Content identity of correctness inputs; generated receipts are not inputs.
+
+    Include paths as well as bytes so added/deleted tests invalidate old passes,
+    even when a checkout or copy preserves filesystem timestamps. Historical
+    training measurements intentionally retain their original resume behavior.
+    """
+    if item["id"] not in GATE_SOURCES:
+        return None
+    paths = {ROOT / "scripts" / "run_queue.py"}
+    for pattern in GATE_SOURCES[item["id"]]:
+        paths.update(path for path in ROOT.glob(pattern) if path.is_file())
+    files = {
+        path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(paths) if path.is_file()
+    }
+    identity = {"files": files, "command": item["cmd"]}
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True).encode("utf-8")).hexdigest()
+    return {"sha256": digest, **identity}
 
 
-def reference_is_stale(metrics):
-    metrics_path = ROOT / metrics
-    if not metrics_path.exists():
-        return True
-    stamp = metrics_path.stat().st_mtime
-    for path in (ROOT / "reference").rglob("*"):
-        if path.is_file() and path.stat().st_mtime > stamp:
-            return True
-    return False
+def gate_is_stale(item, state):
+    expected = gate_source_snapshot(item)
+    return expected is not None and state.get("payload", {}).get("verification_source") != expected
+
+
+def correctness_gates_current(items):
+    for item in items:
+        if item["id"] in GATE_SOURCES:
+            state = metrics_state(ROOT / item["metrics"])
+            if not state["ok"] or gate_is_stale(item, state):
+                return False
+    return True
 
 
 def write_gate(item_id, proof):
     return write_metrics(
         RUNS / item_id / "metrics.json",
-        {"run_id": item_id, "complete": True, "host_gpu": False, "kind": "host_gate", "proof": proof[-400:]},
+        {"run_id": item_id, "complete": True, "host_gpu": False, "jovin_receipt": False,
+         "kind": "host_gate", "proof": proof[-400:]},
     )
 
 
@@ -494,38 +641,64 @@ def ledger_row(item, head, count, exit_code, state, skipped):
 
 
 def execute(item):
+    snapshot = gate_source_snapshot(item)
     if item["kind"] == "alias":
         copy_alias(item)
         return 0
     if item["kind"] == "mcp":
-        return run_mcp()
-    code = stream_command(item["cmd"])
-    if code == 0 and item["kind"] == "gate":
-        write_gate(item["id"], item["id"])
+        code = run_mcp()
+    else:
+        if item["id"] == "verify_reference":
+            try:
+                code = stream_command(item["cmd"], timeout_s=REFERENCE_GATE_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                print(f"FAILED reference gate timed out after {REFERENCE_GATE_TIMEOUT_S} seconds; no completion attested", flush=True)
+                return 124
+        else:
+            code = stream_command(item["cmd"])
+        if code == 0 and item["kind"] == "gate":
+            write_gate(item["id"], item["id"])
+    if code == 0 and snapshot is not None:
+        if snapshot != gate_source_snapshot(item):
+            print(f"FAILED {item['id']} source changed during verification; rerun required", flush=True)
+            return 1
+        state = metrics_state(ROOT / item["metrics"])
+        if not state["ok"]:
+            return 1
+        payload = dict(state["payload"])
+        payload["verification_source"] = snapshot
+        write_metrics(ROOT / item["metrics"], payload)
     return code
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--gates-only", action="store_true",
+                        help="Run/check correctness gates only; never start training or write QUEUE_DONE.")
+    args = parser.parse_args(argv)
     apply_env()
     RUNS.mkdir(parents=True, exist_ok=True)
-    if DONE.exists():
+    items = build_items()
+    if args.gates_only:
+        items = [item for item in items if item["id"] in GATE_SOURCES]
+    if not args.gates_only and DONE.exists() and correctness_gates_current(items):
         print("SKIP queue runs/QUEUE_DONE exists", flush=True)
         return 0
     others = foreign_pids()
     if others:
         print(f"FAILED another run_queue.py is alive: {others}", flush=True)
         return 1
+    if not args.gates_only and DONE.exists():
+        DONE.unlink()
+        print("RECHECK queue correctness inputs changed", flush=True)
     heartbeat(f"QUEUE preflight pid={os.getpid()}")
     print(f"QUEUE pid={os.getpid()}", flush=True)
     head, count = preflight_wsl()
     print(f"jovin head {head} count {count}", flush=True)
     backfill(head, count)
-    items = build_items()
     for item in items:
         state = metrics_state(ROOT / item["metrics"])
-        stale = item["id"] == "verify_reference" and reference_is_stale(item["metrics"])
-        if item["id"] == "host_invariants":
-            stale = source_newer_than(item["metrics"], INVARIANT_SOURCES)
+        stale = gate_is_stale(item, state)
         # The data metrics hash can be present on a clean checkout while the
         # gitignored token memmaps are not. Skipping then fails the first train.
         needs_memmaps = item["id"] == "data" and not data_files_ready()
@@ -539,6 +712,10 @@ def main():
         heartbeat(f"QUEUE start {item['id']}")
         print(f"QUEUE start {item['id']}", flush=True)
         code = execute(item)
+        if code == 0 and item["id"] == "verify_reference":
+            # The verification command appends twelve receipts. Record the
+            # verified chain after that run, not the preflight's older head.
+            head, count = verify_receipt_chain()
         state = metrics_state(ROOT / item["metrics"])
         append_ledger(ledger_row(item, head, count, code, state, False))
         if code != 0 or not state["ok"]:
@@ -548,6 +725,10 @@ def main():
             )
             return code or 1
         print(f"QUEUE pass {item['id']} sha256={state['sha256']}", flush=True)
+    if args.gates_only:
+        heartbeat("QUEUE correctness gates done")
+        print("DONE correctness gates; training was not started", flush=True)
+        return 0
     DONE.write_text(
         json.dumps({"complete": True, "items": len(items), "jovin_head_at_start": head}, indent=2) + "\n",
         encoding="utf-8",
@@ -558,4 +739,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["_contained_queue_command"]:
+        raise SystemExit(contained_queue_command(json.loads(sys.argv[2])))
     raise SystemExit(main())
