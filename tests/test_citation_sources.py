@@ -59,7 +59,66 @@ def test_retrieve_preserves_full_pdf_bytes(monkeypatch):
     assert result["pdf"] is True
     assert result["text"] == ""
     monkeypatch.setattr(fetch, "MAX_SOURCE_BYTES", 100)
-    assert fetch.retrieve("https://example.org/paper.pdf")["ok"] is False
+    oversized = fetch.retrieve("https://example.org/paper.pdf")
+    assert oversized["ok"] is False
+    assert oversized["error"] == "ValueError: source exceeds byte limit; refusing a truncated citation"
+
+
+@pytest.mark.parametrize("extra_byte", [False, True])
+def test_retrieve_accepts_exact_limit_and_rejects_one_extra_byte(monkeypatch, extra_byte):
+    maximum = 256
+    body = b"%PDF-" + b"x" * (maximum - 5 + int(extra_byte))
+    read_limits = []
+    class Response:
+        status = 200
+        headers = {"Content-Type": "application/pdf"}
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def geturl(self): return "https://example.org/exact.pdf"
+        def read(self, limit):
+            read_limits.append(limit)
+            return body[:limit]
+    monkeypatch.setattr(fetch, "MAX_SOURCE_BYTES", maximum)
+    monkeypatch.setattr(fetch.urllib.request, "urlopen", lambda *args, **kwargs: Response())
+    result = fetch.retrieve("https://example.org/exact.pdf")
+    assert read_limits == [maximum + 1]
+    if extra_byte:
+        assert result["ok"] is False
+        assert result["error"] == "ValueError: source exceeds byte limit; refusing a truncated citation"
+        assert "body" not in result
+    else:
+        assert result["ok"] is True
+        assert result["body"] == body
+        assert len(result["body"]) == maximum
+
+
+@pytest.mark.parametrize("content_type, body, extension", [
+    ("application/pdf", b"%PDF-1.7\r\n" + bytes(range(256)), ".pdf"),
+    ("text/html; charset=utf-8", b"<title>Fixture</title>\r\n" + b"\xff" * 220, ".html"),
+    ("text/plain", b"Synthetic source\r\n" + b"\xfe" * 220, ".txt"),
+])
+def test_remote_main_preserves_source_extension_bytes_hash_and_unreviewed_status(tmp_path, monkeypatch, content_type, body, extension):
+    monkeypatch.setattr(fetch, "ROOT", tmp_path)
+    monkeypatch.setattr(fetch, "SOURCES", tmp_path / "paper/sources")
+    monkeypatch.setattr(fetch, "FUNDING", tmp_path / "paper/funding")
+    monkeypatch.setattr(fetch, "apply_env", lambda: None)
+    monkeypatch.setattr(fetch, "LOCALS", [])
+    monkeypatch.setattr(fetch, "FUNDING_PAGES", [])
+    monkeypatch.setattr(fetch, "SEEDS", [{"key": "fixture", "title": "Synthetic source", "label": "Fixture",
+                                        "url": "https://example.org/requested"}])
+    pdf = body.startswith(b"%PDF-")
+    monkeypatch.setattr(fetch, "retrieve", lambda url: {"ok": True, "status": 200, "url": "https://example.org/final",
+        "content_type": content_type, "pdf": pdf, "body": body, "text": "" if pdf else body.decode("utf-8", errors="replace")})
+    assert fetch.main() == 0
+    entry = json.loads((tmp_path / "paper/references.json").read_text(encoding="utf-8"))["fixture"]
+    source = tmp_path / entry["source_file"]
+    assert source.suffix == extension
+    assert source.read_bytes() == body
+    assert entry["source_sha256"] == hashlib.sha256(body).hexdigest()
+    assert entry["citation_support_reviewed"] is False
+    assert entry["local_source"] is False
+    assert entry["retrieved_url"] == "https://example.org/final"
+    assert entry["content_type"] == content_type
 
 
 def test_local_source_is_copied_not_replaced_with_hash_stub(tmp_path, monkeypatch):
@@ -130,8 +189,12 @@ def test_publication_build_emits_exact_reviewed_resolved_bytes(publication, monk
     assert (paper / "manuscript.resolved.md").read_bytes() == resolved.encode("utf-8")
 
 
-@pytest.mark.parametrize("binding", ["old_hash", "new_hash", "unlisted"])
-def test_changed_metrics_with_valid_sidecar_cannot_reuse_review(publication, monkeypatch, binding):
+@pytest.mark.parametrize("binding, reason", [
+    ("old_hash", "publication evidence gate failed: artifact hash mismatch: timing"),
+    ("new_hash", "human review must bind the exact resolved manuscript UTF-8/LF bytes"),
+    ("unlisted", "unlisted"),
+])
+def test_changed_metrics_with_valid_sidecar_cannot_reuse_review(publication, monkeypatch, binding, reason):
     manifest, metric, _, paper, _ = publication
     old_manuscript_hash = manifest["manuscript"]["sha256"]
     write_fixture_metrics(metric, 9.75)
@@ -144,19 +207,24 @@ def test_changed_metrics_with_valid_sidecar_cannot_reuse_review(publication, mon
         manifest["claims"][0]["evidence"] = [{"artifact": "citation"}]
     (paper / "claim_evidence.json").write_text(json.dumps(manifest))
     monkeypatch.setattr(binder, "build_pdf", lambda *args: pytest.fail("Rejected inputs reached PDF build"))
-    with pytest.raises(SystemExit, match="artifact hash mismatch|not bound|exact resolved manuscript"):
+    with pytest.raises(SystemExit) as caught:
         binder.main()
+    if binding == "unlisted":
+        reason = f"publication input is not bound as a validated artifact: {metric.resolve()}"
+    assert str(caught.value) == reason
     assert hashlib.sha256((paper / "manuscript.md").read_bytes()).hexdigest() == old_manuscript_hash
     assert not (paper / "manuscript.resolved.md").exists()
 
 
 @pytest.mark.parametrize("artifact", ["timing", "references", "citation"])
 def test_every_substitution_input_must_be_bound(publication, artifact):
-    manifest, _, _, _, _ = publication
+    manifest, metric, references, paper, _ = publication
     del manifest["artifacts"][artifact]
     manifest["claims"][0]["evidence"] = [{"artifact": next(iter(manifest["artifacts"]))}]
-    with pytest.raises(SystemExit, match="not bound"):
+    with pytest.raises(SystemExit) as caught:
         binder.resolve_publication(manifest)
+    missing_path = {"timing": metric, "references": references, "citation": paper / "source.txt"}[artifact]
+    assert str(caught.value) == f"publication input is not bound as a validated artifact: {missing_path.resolve()}"
 
 
 def test_reference_metadata_change_requires_new_binding(publication):
@@ -178,8 +246,12 @@ def test_updated_reference_label_cannot_reuse_resolved_review(publication):
         binder.resolve_publication(manifest)
 
 
-@pytest.mark.parametrize("missing", ["resolved_digest", "human_review", "planned"])
-def test_incomplete_review_cannot_build_publication(publication, missing):
+@pytest.mark.parametrize("missing, reason", [
+    ("resolved_digest", "human review must bind the exact resolved manuscript UTF-8/LF bytes"),
+    ("human_review", "publication evidence gate failed: publication claim unresolved or not human-reviewed: fixture"),
+    ("planned", "publication evidence gate failed: publication claim unresolved or not human-reviewed: fixture"),
+])
+def test_incomplete_review_cannot_build_publication(publication, missing, reason):
     manifest, _, _, _, _ = publication
     if missing == "resolved_digest":
         del manifest["resolved_manuscript_sha256"]
@@ -187,5 +259,6 @@ def test_incomplete_review_cannot_build_publication(publication, missing):
         del manifest["claims"][0]["human_review"]
     else:
         manifest["claims"][0]["status"] = "planned"
-    with pytest.raises(SystemExit, match="exact resolved manuscript|not human-reviewed"):
+    with pytest.raises(SystemExit) as caught:
         binder.resolve_publication(manifest)
+    assert str(caught.value) == reason

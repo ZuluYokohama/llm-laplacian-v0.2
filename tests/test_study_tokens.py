@@ -135,6 +135,13 @@ def test_invalid_or_overflow_token_ids_are_rejected_without_completion(fixture, 
     assert_failed(fixture)
 
 
+@pytest.mark.parametrize("ids", [[50256], [1, 50256, 2], [1, 50256]])
+def test_in_story_eos_is_rejected_without_promoting_a_bundle(fixture, ids):
+    with pytest.raises(ValueError, match="in-story EOS token is forbidden"):
+        prepare(fixture, TinyTokenizer(ids=ids))
+    assert_failed(fixture)
+
+
 @pytest.mark.parametrize("target", ["source", "jsonl"])
 def test_preexisting_input_tampering_is_rejected(fixture, target):
     path = fixture.sources[0] if target == "source" else fixture.partitions / "train.jsonl"
@@ -236,6 +243,22 @@ def test_consumer_validator_rejects_injected_tokenizer_by_default(fixture):
         study_tokens.validate_bundle(fixture.output / "manifest.json")
 
 
+@pytest.mark.parametrize("mutation,message", [
+    ("historical_policy", "complete production token bundle"),
+    ("interior_eos_policy", "pinned GPT-2 policy"),
+])
+def test_consumer_requires_explicit_single_eos_version(fixture, monkeypatch, mutation, message):
+    path = production_fixture(fixture, monkeypatch)
+    manifest = json.loads(path.read_text())
+    if mutation == "historical_policy":
+        manifest["policy"] = "gpt2_story_eos_u16le_v1"
+    else:
+        manifest["tokenizer"].pop("interior_eos")
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match=message):
+        study_tokens.validate_bundle(path)
+
+
 @pytest.mark.parametrize("tamper", [None, "tokens", "offsets", "partition", "tokenizer"])
 def test_consumer_validator_binds_bundle_and_upstream_inputs(fixture, monkeypatch, tamper):
     path = production_fixture(fixture, monkeypatch)
@@ -272,3 +295,15 @@ def test_tiny_real_pinned_cpu_tokenizer_and_dependency_inventory(fixture, monkey
     assert manifest["tokenizer"]["file"]["sha256"] == study_tokens.TOKENIZER_SHA256
     assert manifest["token_counts"]["train"] > manifest["story_counts"]["train"] * 2
     assert study_tokens.validate_bundle(fixture.output / "manifest.json") == manifest
+
+
+@pytest.mark.skipif(not REAL_TOKENIZER_JSON.is_file(), reason="pinned local GPT-2 snapshot is unavailable")
+def test_literal_special_token_is_rejected_with_real_gpt2(fixture):
+    texts = list(fixture.selected[:4])
+    texts[0] = "A story containing literal <|endoftext|> text."
+    write_arrow(fixture.sources[0], texts)
+    partitions = fixture.partitions.with_name("literal_partitions")
+    study_data.prepare(fixture.sources, partitions, seed=23)
+    with pytest.raises(ValueError, match="in-story EOS token is forbidden"):
+        study_tokens.prepare(partitions, fixture.output, tokenizer_json=REAL_TOKENIZER_JSON)
+    assert_failed(fixture)

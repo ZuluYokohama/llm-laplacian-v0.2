@@ -29,7 +29,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_APPROVED_HOURS = 181.0
 DEFAULT_DECISIONS = ROOT / "paper" / "planning" / "decisions.json"
 DEFAULT_LEDGER = ROOT / "runs" / "publication_study" / "budget.jsonl"
-SECRET_NAME = re.compile(r"token|secret|password|passwd|credential|api[-_]?key|authorization", re.I)
+SECRET_NAME = re.compile(
+    r"(?:^|[-_])(?:(?:access|auth|api|hf|bearer|refresh)[-_]?)?token(?:$|[-_]id$)"
+    r"|secret|password|passwd|credential|api[-_]?key|authorization", re.I,
+)
 
 
 class BudgetError(RuntimeError):
@@ -125,7 +128,13 @@ def read_ledger(path):
     runs = accounting(records)
     artifacts = path.parent / "runs"
     inventory = {item.name for item in artifacts.iterdir()} if artifacts.exists() else set()
-    if inventory != set(runs):
+    # New reservations are durable before creating any run artifacts. A crash
+    # in that prelaunch phase is still fully charged and explicitly recoverable.
+    # Once launch is authorized, missing evidence remains a hard failure.
+    prelaunch = {name for name, run in runs.items()
+                 if run["reservation"].get("launch_protocol") == "prelaunch-ledger-v1"
+                 and not run["launch_authorized"]}
+    if inventory - set(runs) or (set(runs) - inventory) - prelaunch:
         raise BudgetError("Run artifacts and reservation inventory disagree; refusing a reset or missing evidence")
     return records
 
@@ -150,7 +159,16 @@ def accounting(records):
             reserve = record.get("reserve_seconds")
             if run_id in runs or not isinstance(reserve, (int, float)) or not math.isfinite(reserve) or reserve <= 0:
                 raise BudgetError("Invalid or duplicate reservation")
-            runs[run_id] = {"reservation": record, "charge_seconds": reserve, "settled": False}
+            protocol = record.get("launch_protocol")
+            if protocol not in (None, "prelaunch-ledger-v1"):
+                raise BudgetError("Unknown reservation launch protocol")
+            runs[run_id] = {"reservation": record, "charge_seconds": reserve, "settled": False,
+                            "launch_authorized": protocol is None}
+        elif event == "launch_authorized":
+            if (run_id not in runs or runs[run_id]["settled"] or runs[run_id]["launch_authorized"]
+                    or runs[run_id]["reservation"].get("launch_protocol") != "prelaunch-ledger-v1"):
+                raise BudgetError("Launch authorization without one unique prelaunch reservation")
+            runs[run_id]["launch_authorized"] = True
         elif event in ("finished", "recovered"):
             if run_id not in runs or runs[run_id]["settled"]:
                 raise BudgetError("Settlement without one unique open reservation")
@@ -162,6 +180,8 @@ def accounting(records):
                 raise BudgetError("Recovery cannot refund uncertain time")
             if record.get("status") != "completed" and charge < reserve:
                 raise BudgetError("Failed/uncertain runs retain their whole reservation")
+            if record.get("status") == "completed" and not runs[run_id]["launch_authorized"]:
+                raise BudgetError("Successful settlement requires launch authorization")
             runs[run_id].update(charge_seconds=charge, settled=True, settlement=record)
         else:
             raise BudgetError(f"Unknown ledger event: {event}")
@@ -213,7 +233,7 @@ def provenance(command, device):
 
 
 def secret_values(command):
-    values = {value for key, value in os.environ.items() if SECRET_NAME.search(key) and len(value) >= 4}
+    values = {value for key, value in os.environ.items() if SECRET_NAME.search(key) and value}
     hide_next = False
     for part in command:
         if hide_next:
@@ -232,7 +252,12 @@ def copy_redacted(stream, target, secrets):
         for raw in iter(stream.readline, b""):
             text = raw.decode("utf-8", errors="replace")
             for value in secrets:
-                text = text.replace(value, "<redacted>")
+                if len(value) >= 4:
+                    text = text.replace(value, "<redacted>")
+                else:
+                    # Short credentials still need protection, but replacing
+                    # every occurrence of a digit would corrupt unrelated data.
+                    text = re.sub(r"(?<!\w)" + re.escape(value) + r"(?!\w)", "<redacted>", text)
             target.write(text)
             target.flush()
     except (OSError, ValueError):
@@ -376,12 +401,11 @@ def run_study(args):
         if used + args.reserve_seconds > cap:
             raise BudgetError(f"Reservation exceeds approved remaining budget: {max(0, cap-used):.3f} seconds")
         directory = ledger.parent / "runs" / args.run_id
-        directory.mkdir(parents=True, exist_ok=False)
-        atomic_json(directory / "provenance.json", provenance(command, args.cuda_device))
         started, started_unix = time.monotonic(), time.time()
         grace = min(5.0, args.reserve_seconds * 0.2)
         append_event(ledger, records, "reserved", run_id=args.run_id, reserve_seconds=args.reserve_seconds,
                      cap_seconds=cap, approval_sha256=approval_hash, started_unix=started_unix,
+                     launch_protocol="prelaunch-ledger-v1",
                      deadline_unix=started_unix + args.reserve_seconds, directory=str(directory.resolve()),
                      supervisor_cutoff_unix=started_unix + args.reserve_seconds - grace,
                      supervisor_cutoff_monotonic=started + args.reserve_seconds - grace)
@@ -393,8 +417,13 @@ def run_study(args):
         env["STUDY_BUDGET_DEADLINE_UNIX"] = str(started_unix + args.reserve_seconds - grace)
         kwargs = {"start_new_session": True} if os.name != "nt" else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
         proc, status, code = None, "launch_failure", None
+        launch_authorized = False
         try:
+            directory.mkdir(parents=True, exist_ok=False)
+            atomic_json(directory / "provenance.json", provenance(command, args.cuda_device))
             with (directory / "supervisor.log").open("wb") as output:
+                append_event(ledger, records, "launch_authorized", run_id=args.run_id)
+                launch_authorized = True
                 proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "_supervise", str(directory.resolve())],
                                         stdin=subprocess.PIPE, stdout=output, stderr=subprocess.STDOUT, env=env, **kwargs)
                 request = {"command": command, "cwd": str(ROOT),
@@ -407,7 +436,8 @@ def run_study(args):
             result = json.loads((directory / "result.json").read_text(encoding="utf-8"))
             status, code = result["status"], result.get("returncode")
         except BaseException as exc:
-            status = "interrupted" if isinstance(exc, KeyboardInterrupt) else "uncertain"
+            status = ("launch_failure" if not launch_authorized else
+                      "interrupted" if isinstance(exc, KeyboardInterrupt) else "uncertain")
             if proc is not None:
                 stop_supervisor(proc)
                 try:
@@ -440,7 +470,13 @@ def status_or_recover(args):
             if time.time() <= reservation["deadline_unix"]:
                 raise BudgetError("Recovery cannot precede the original reservation deadline")
             identity_path = Path(reservation["directory"]) / "supervisor.json"
-            if identity_path.exists():
+            if (reservation.get("launch_protocol") == "prelaunch-ledger-v1"
+                    and not run["launch_authorized"]):
+                if identity_path.exists() or (identity_path.parent / "result.json").exists():
+                    raise BudgetError("Unexpected supervisor evidence before launch authorization")
+                # Under the OS lock, the original wrapper is gone; the durable
+                # ledger proves this code never reached supervisor admission.
+            elif identity_path.exists():
                 identity = json.loads(identity_path.read_text(encoding="utf-8"))
                 if not identity.get("contained") or process_alive(identity["pid"]):
                     raise BudgetError("Supervisor termination cannot be proven; retain reservation")

@@ -19,6 +19,7 @@ TESTS = [
     "test_claims.py", "test_citation_sources.py", "test_gpu_resume_gate.py",
     "test_fractional_cutoff_cpu.py", "test_study_evaluation.py",
     "test_study_rate.py",
+    "test_benchmark_optimization.py", "test_gpu_diagnostic_gates.py",
 ]
 
 
@@ -33,6 +34,8 @@ def prepare(output, tokenizer_json):
         "scripts/check_gpu_resume.py", "scripts/prepare_reproduction_capsule.py",
         "scripts/check_fractional_cutoff_cpu.py", "scripts/evaluate_study.py",
         "scripts/benchmark_study_rate.py",
+        "scripts/benchmark_optimization.py", "scripts/check_gpu_numerics.py",
+        "scripts/check_fractional_sensitivity.py",
         "paper/planning/FRACTIONAL_POLICY.md",
         "paper/planning/environment_20261021/observed.json",
         "paper/planning/environment_20261021/wheel_inventory.json",

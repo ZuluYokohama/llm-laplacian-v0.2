@@ -16,3 +16,6 @@ reference/receipts/** -text whitespace=blank-at-eol,blank-at-eof,space-before-ta
 data/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 paper/planning/*.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 paper/planning/environment_*/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+paper/sources/** -text
+paper/references.json -text
+paper/manuscript.md -text

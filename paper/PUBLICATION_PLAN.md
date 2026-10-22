@@ -292,10 +292,14 @@ CG residual acceptance, and mask-to-compact equivalence. Do not price it from
 the single historical ten-minute composite pulse.
 
 Approved decision: the **core paper scope with a hard ceiling of 181 GPU-hours**,
-with G0/G1 correctness gates and the four-hour rate/performance stage first.
+with G0/G1 correctness gates and short rate probes first.
 Approval was received on October 21, 2026; extensions remain outside this scope.
-The lower-cost alternative is the four-hour performance stage alone, producing
-a narrower execution/verification study without training-quality conclusions.
+The timing matrix depends on seed-0 CE snapshots at updates 0, 5,000, 25,000
+and 50,000. Producing those snapshots is charged to Package B; the originally
+allocated four-hour Package A is not a standalone study budget. A narrower
+execution/verification study would still need those bound checkpoints and its
+own complete budget. The provisional timing-collector forecast and its revised
+allocation must be checked before scheduling the confirmatory matrix.
 
 ## 5. Authorship, AI assistance, and software credit
 

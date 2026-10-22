@@ -18,7 +18,7 @@ import sys
 from . import study_data
 
 SPLITS = tuple(study_data.SPLIT_WEIGHTS)
-TOKEN_POLICY = "gpt2_story_eos_u16le_v1"
+TOKEN_POLICY = "gpt2_story_single_eos_u16le_v2"
 TOKENIZER_REVISION = "607a30d783dfa663caf39e06633721c8d4cfcd7e"
 TOKENIZER_SHA256 = "8414cab924d8b9b33013f0d221c5862f365ee9be39c5c2bfae8a5a9e970478a6"
 DEFAULT_TOKENIZER_JSON = Path.home() / ".cache/huggingface/hub/models--gpt2/snapshots" / TOKENIZER_REVISION / "tokenizer.json"
@@ -211,6 +211,8 @@ def prepare(partitions, output, tokenizer_json=DEFAULT_TOKENIZER_JSON, *, tokeni
                 ids = tokenizer.encode(text, add_special_tokens=False).ids
                 if not ids or any(type(token) is not int or not 0 <= token < VOCAB_SIZE or token > 65535 for token in ids):
                     raise ValueError(f"invalid/overflow token ID at {key}")
+                if EOS_ID in ids:
+                    raise ValueError(f"in-story EOS token is forbidden by the single-terminal-EOS policy at {key}")
                 ids = [*ids, EOS_ID]
                 token_files[split].write(struct.pack(f"<{len(ids)}H", *ids))
                 record = {**row, "offset": token_counts[split], "length": len(ids)}
@@ -247,7 +249,7 @@ def prepare(partitions, output, tokenizer_json=DEFAULT_TOKENIZER_JSON, *, tokeni
             "tokenizer": {"mode": "injected_test_double" if injected else "pinned_gpt2",
                           "revision": None if injected else TOKENIZER_REVISION, "file": tokenizer_record,
                           "vocab_size": VOCAB_SIZE, "eos_id": EOS_ID, "add_special_tokens": False,
-                          "append_eos_per_story": True, "padding": False, "truncation": False},
+                          "append_eos_per_story": True, "interior_eos": "reject", "padding": False, "truncation": False},
             "code": code, "dependencies": dependencies, "runtime": runtime,
             "limitations": "Inherits exact normalized-content partitions; does not establish semantic deduplication or historical non-exposure. Injected tokenizers are never production-ready.",
         }
@@ -274,6 +276,7 @@ def validate_bundle(manifest_path):
     if (tokenizer.get("mode") != "pinned_gpt2" or tokenizer.get("revision") != TOKENIZER_REVISION
             or tokenizer.get("vocab_size") != VOCAB_SIZE or tokenizer.get("eos_id") != EOS_ID
             or tokenizer.get("add_special_tokens") is not False or tokenizer.get("append_eos_per_story") is not True
+            or tokenizer.get("interior_eos") != "reject"
             or tokenizer.get("padding") is not False or tokenizer.get("truncation") is not False
             or tokenizer.get("file", {}).get("sha256") != TOKENIZER_SHA256):
         raise ValueError("token bundle does not bind the pinned GPT-2 policy")

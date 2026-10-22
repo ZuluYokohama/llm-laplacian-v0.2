@@ -52,7 +52,17 @@ invocation. CPU startup, synchronization, and cleanup inside that invocation
 also count. This conservatively exceeds pure GPU-active time; it is not a
 utilization-weighted or energy measurement.
 
-Before launch, the wrapper appends and fsyncs the full reservation. Hash-linked
+Before creating run artifacts, the wrapper appends and fsyncs the full reservation.
+New reservations use `prelaunch-ledger-v1`: directory/provenance setup follows
+reservation, then a durable `launch_authorized` event precedes supervisor
+creation. A setup failure settles at the full reservation; a crash before
+authorization remains charged and can be recovered explicitly after its
+deadline, even if its directory was never created. Unexpected supervisor
+evidence without authorization is rejected. Once launch is authorized, missing
+artifacts still fail closed. Existing older ledger records remain readable;
+they do not gain the new prelaunch recovery exception.
+
+Hash-linked
 JSONL events include monotonic sequence numbers, approval identity, unique run
 identity, reservation, cutoff, and artifact directory. The OS lock remains held
 for the entire command, so concurrent invocations cannot overbook the allowance.
@@ -115,8 +125,12 @@ processes receive `STUDY_BUDGET_RUN_ID`, `STUDY_BUDGET_LEDGER`, and
 
 Credential-like argument values and inline command bodies are omitted from
 provenance. Known credential values in the environment/credential arguments are
-redacted from stdout/stderr. Commands should consume credentials through their
-normal secure environment and must not print secrets: arbitrary transformed
+redacted from stdout/stderr.
+Credential names are matched narrowly so token manifests, token counts and
+tokenizer settings remain visible. Short explicit credentials are redacted at
+word boundaries rather than replacing every occurrence inside unrelated values.
+Commands should consume credentials through their normal secure environment
+and must not print secrets: arbitrary transformed
 secrets cannot be reliably detected by a log filter. Actual command arguments
 are sent to the supervisor through a pipe, not saved in a plaintext command file.
 

@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from laplacian.arms import PULSE_STEPS, alias_sources, all_configs, get_config, layers_0index
@@ -54,7 +55,7 @@ def test_mcp_cochain_builder_returns_shapes_for_a_one_cell_complex():
 
 
 def test_mcp_stdio_process_returns_one_json_object():
-    python = ROOT / ".venv" / "Scripts" / "python.exe"
+    python = sys.executable
     message = {
         "id": "stdio",
         "tool": "verification_gate",

@@ -50,7 +50,7 @@ def test_success_is_durable_measured_and_cpu_only(paths):
     result = run(paths, "ok", "import os; print(repr(os.environ['CUDA_VISIBLE_DEVICES']))")
     assert result.returncode == 0, result.stderr + result.stdout
     records = budget.read_ledger(paths[1])
-    assert [row["event"] for row in records] == ["reserved", "finished"]
+    assert [row["event"] for row in records] == ["reserved", "launch_authorized", "finished"]
     assert 0 < records[-1]["charge_seconds"] < 2
     directory = Path(records[0]["directory"])
     assert (directory / "stdout.log").read_text().strip() == "''"
@@ -92,7 +92,7 @@ def test_cap_and_run_id_cannot_be_reused(paths):
     result = run(paths, "overcap", "print('must not launch')", reserve=1)
     assert result.returncode == 2
     assert "exceeds approved" in result.stderr
-    assert len(budget.read_ledger(paths[1])) == 2
+    assert len(budget.read_ledger(paths[1])) == 3
     result = run(paths, "failure", "print('must not launch')", reserve=0.5)
     assert result.returncode == 2
     assert "immutable" in result.stderr
@@ -161,7 +161,7 @@ def test_crashed_wrapper_retains_charge_until_explicit_recovery(paths, tmp_path)
         proc.kill()
         proc.wait(timeout=2)
         records = budget.read_ledger(paths[1])
-        assert len(records) == 1
+        assert [row["event"] for row in records] == ["reserved", "launch_authorized"]
         assert budget.accounting(records)["crashed"]["charge_seconds"] == 2
         assert run(paths, "premature", "pass").returncode == 2
         wait_until(lambda: not budget.process_alive(grandchild_pid))
@@ -192,6 +192,31 @@ def test_logged_output_redacts_known_credentials(paths, monkeypatch):
     assert (paths[1].parent / "runs" / "redaction" / "stdout.log").read_text().strip() == "<redacted>"
 
 
+def test_token_data_options_are_not_credentials(monkeypatch):
+    monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+    command = ["python", "evaluate.py", "--token-manifest", "data/manifest.json",
+               "--max-tokens", "8", "--tokenizer", "gpt2"]
+    assert budget.public_command(command) == command
+    values = budget.secret_values(command)
+    assert not {"false", "8", "gpt2", "data/manifest.json"}.intersection(values)
+
+
+@pytest.mark.parametrize("name", ["--token", "--access-token", "--api-token", "--hf-token",
+                                  "--api-key", "--password", "--client-secret"])
+def test_credential_shaped_options_remain_redacted(name):
+    for command in (["python", name, "private-value"], ["python", name + "=private-value"]):
+        assert "private-value" not in " ".join(budget.public_command(command))
+        assert "private-value" in budget.secret_values(command)
+
+
+def test_short_explicit_credential_is_redacted_without_corrupting_digits():
+    import io
+    target = io.StringIO()
+    budget.copy_redacted(io.BytesIO(b"password=8; count=181; marker=a8b\n"), target,
+                         budget.secret_values(["python", "--password", "8"]))
+    assert target.getvalue() == "password=<redacted>; count=181; marker=a8b\n"
+
+
 def test_recovery_cannot_credit_unused_uncertain_time():
     with pytest.raises(budget.BudgetError, match="refund"):
         budget.accounting([{"event": "reserved", "run_id": "x", "reserve_seconds": 10},
@@ -204,3 +229,85 @@ def test_approval_cannot_be_reused_with_another_ledger(paths, tmp_path):
     assert result.returncode == 2
     assert "differs from the approved ledger" in result.stderr
     assert not other.exists()
+
+
+def setup_args(paths, run_id):
+    from types import SimpleNamespace
+    return SimpleNamespace(decisions=paths[0], ledger=paths[1], run_id=run_id,
+                           reserve_seconds=2.0, cuda_device="", command=[sys.executable, "-c", "pass"])
+
+
+@pytest.mark.parametrize("failure", ["directory", "provenance"])
+def test_setup_failure_is_recorded_and_does_not_strand_ledger(paths, monkeypatch, failure):
+    directory = paths[1].parent / "runs" / "setup-failure"
+    original_mkdir = Path.mkdir
+    original_atomic = budget.atomic_json
+    def fail_mkdir(path, *args, **kwargs):
+        if failure == "directory" and path == directory:
+            raise PermissionError("injected directory failure")
+        return original_mkdir(path, *args, **kwargs)
+    def fail_provenance(path, value):
+        if failure == "provenance" and path.name == "provenance.json":
+            raise PermissionError("injected provenance replacement failure")
+        return original_atomic(path, value)
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    monkeypatch.setattr(budget, "atomic_json", fail_provenance)
+    monkeypatch.setattr(budget.subprocess, "Popen", lambda *a, **k: pytest.fail("No supervisor may launch"))
+    assert budget.run_study(setup_args(paths, "setup-failure")) == 1
+    records = budget.read_ledger(paths[1])
+    assert [row["event"] for row in records] == ["reserved", "finished"]
+    assert records[-1]["status"] == "launch_failure"
+    assert records[-1]["charge_seconds"] == 2.0
+    assert not budget.accounting(records)["setup-failure"]["launch_authorized"]
+    monkeypatch.undo()
+    assert run(paths, "after-setup-failure", "pass").returncode == 0
+
+
+def test_crash_after_reservation_before_directory_is_recoverable(paths, tmp_path):
+    crash_script = tmp_path / "crash_prelaunch.py"
+    args = cli(paths, "run", "--run-id", "prelaunch-crash", "--reserve-seconds", "0.5", "--",
+               sys.executable, "-c", "raise RuntimeError('must never launch')")[2:]
+    crash_script.write_text(
+        "import importlib.util, os\nfrom pathlib import Path\n"
+        f"spec=importlib.util.spec_from_file_location('budget', {str(SCRIPT)!r})\n"
+        "budget=importlib.util.module_from_spec(spec)\nspec.loader.exec_module(budget)\n"
+        "original=Path.mkdir\n"
+        "def crash(path, *args, **kwargs):\n"
+        "    if path.name == 'prelaunch-crash': os._exit(61)\n"
+        "    return original(path, *args, **kwargs)\n"
+        "Path.mkdir=crash\n"
+        f"budget.main({args!r})\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, str(crash_script)], capture_output=True, text=True, timeout=5)
+    assert result.returncode == 61, result.stderr
+    records = budget.read_ledger(paths[1])
+    assert len(records) == 1 and records[0]["event"] == "reserved"
+    assert not Path(records[0]["directory"]).exists()
+    assert budget.accounting(records)["prelaunch-crash"]["charge_seconds"] == .5
+    assert run(paths, "before-recovery", "pass").returncode == 2
+    time.sleep(max(0, records[0]["deadline_unix"] - time.time()) + .05)
+    recovered = subprocess.run(cli(paths, "recover", "--run-id", "prelaunch-crash"),
+                               capture_output=True, text=True, timeout=5)
+    assert recovered.returncode == 0, recovered.stderr
+    assert budget.read_ledger(paths[1])[-1]["charge_seconds"] == .5
+    assert run(paths, "after-recovery", "pass").returncode == 0
+
+
+def test_missing_artifacts_after_launch_still_fail_closed(paths):
+    ledger = paths[1]
+    ledger.parent.mkdir(parents=True)
+    records = []
+    budget.append_event(ledger, records, "reserved", run_id="missing", reserve_seconds=2,
+                        launch_protocol="prelaunch-ledger-v1")
+    budget.append_event(ledger, records, "launch_authorized", run_id="missing")
+    with pytest.raises(budget.BudgetError, match="inventory disagree"):
+        budget.read_ledger(ledger)
+
+
+def test_prelaunch_cannot_claim_success_or_repeat_launch():
+    reservation = {"event": "reserved", "run_id": "x", "reserve_seconds": 2,
+                   "launch_protocol": "prelaunch-ledger-v1"}
+    launch = {"event": "launch_authorized", "run_id": "x"}
+    with pytest.raises(budget.BudgetError, match="requires launch"):
+        budget.accounting([reservation, {"event": "finished", "run_id": "x", "charge_seconds": .1, "status": "completed"}])
+    with pytest.raises(budget.BudgetError, match="unique prelaunch"):
+        budget.accounting([reservation, launch, launch])

@@ -36,6 +36,7 @@ def test_every_split_audited(tmp_path):
     result = audit.audit_structure(folder / "manifest.json", manifest)
     assert result["disjoint_unique_story_ids"] == 4
     assert all(row["tokens"] == 3 for row in result["splits"].values())
+    assert all(row["no_interior_eos"] for row in result["splits"].values())
 
 
 @pytest.mark.parametrize("field,value,match", [
@@ -53,7 +54,9 @@ def test_changed_story_record_rejected(tmp_path, field, value, match):
         audit.audit_structure(folder / "manifest.json", manifest)
 
 
-@pytest.mark.parametrize("tokens,match", [([1, 2, 8], "EOS"), ([1, 10, 9], "vocabulary"), ([1, 2, 9, 9], "accounting")])
+@pytest.mark.parametrize("tokens,match", [([1, 2, 8], "EOS"), ([1, 10, 9], "vocabulary"),
+                                         ([1, 2, 9, 9], "accounting"), ([1, 9, 9], "In-story EOS"),
+                                         ([9, 2, 9], "In-story EOS")])
 def test_token_corruption_rejected(tmp_path, tokens, match):
     folder, _, manifest = fixture_bundle(tmp_path)
     np.array(tokens, dtype="<u2").tofile(folder / "train.u16")

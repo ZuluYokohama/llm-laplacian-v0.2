@@ -66,13 +66,15 @@ def audit_structure(manifest_path, manifest):
                     raise ValueError(f"Invalid story length in {split}")
                 if int(tokens[offset + length - 1]) != manifest["tokenizer"]["eos_id"]:
                     raise ValueError(f"Missing terminal EOS in {split}")
+                if np.any(tokens[offset:offset + length - 1] == manifest["tokenizer"]["eos_id"]):
+                    raise ValueError(f"In-story EOS before the terminal token in {split}")
                 offset += length
                 count += 1
         if (count != manifest["story_counts"][split] or offset != len(tokens)
                 or offset != manifest["token_counts"][split]):
             raise ValueError(f"Story/token accounting mismatch in {split}")
         results[split] = {"stories": count, "tokens": offset, "all_boundaries_have_eos": True,
-                          "all_tokens_in_vocabulary": True, "partition_rows_match": True}
+                          "no_interior_eos": True, "all_tokens_in_vocabulary": True, "partition_rows_match": True}
         del tokens
     return {"splits": results, "disjoint_unique_story_ids": len(seen)}
 

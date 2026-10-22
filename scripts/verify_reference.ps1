@@ -32,7 +32,7 @@ $doctorExit = $LASTEXITCODE
 Write-Console "jovin-doctor: $doctorOutput"
 $doctor = $null
 try { $doctor = $doctorOutput | ConvertFrom-Json } catch { $doctor = $null }
-if ($doctorExit -ne 0 -or $null -eq $doctor -or $doctor.ready -ne $true) {
+if ($doctorExit -ne 0 -or $null -eq $doctor -or $doctor.ready -isnot [bool] -or $doctor.ready -ne $true) {
     Write-Console "FAILED: jovin doctor is not ready"
     exit 1
 }
@@ -57,7 +57,7 @@ foreach ($name in $names) {
     Add-Content -Path (Join-Path $logDir "verify-$name.json") -Encoding utf8 -Value $output
     $parsed = $null
     try { $parsed = $output | ConvertFrom-Json } catch { $parsed = $null }
-    if ($null -eq $parsed -or -not $parsed.passed -or $parsed.integrity -ne "process_isolated") {
+    if ($null -eq $parsed -or $parsed.passed -isnot [bool] -or $parsed.passed -ne $true -or $parsed.integrity -ne "process_isolated") {
         $failed = $true
         $status = if ($parsed) { [string]$parsed.status } else { "unparsed" }
         $block += "| $name | $status | false |  |  |  |"
@@ -79,7 +79,7 @@ $chainExit = $LASTEXITCODE
 Write-Console "jovin-chain: $chainOutput"
 $chain = $null
 try { $chain = $chainOutput | ConvertFrom-Json } catch { $chain = $null }
-if ($chainExit -ne 0 -or $null -eq $chain -or $chain.valid -ne $true) {
+if ($chainExit -ne 0 -or $null -eq $chain -or $chain.valid -isnot [bool] -or $chain.valid -ne $true) {
     $failed = $true
     Write-Console "FAILED: jovin receipt chain is not valid"
 }

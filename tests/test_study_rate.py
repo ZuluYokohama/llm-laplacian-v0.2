@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("study_rate_test", ROOT / "scripts/benchmark_study_rate.py")
 probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
+PRODUCTION_VALIDATOR = probe.validate_probe_config
 
 
 def test_budget_rejection_precedes_any_cuda_query(monkeypatch):
@@ -48,6 +49,28 @@ def test_ce_and_branch_configuration_and_intervention_boundary():
     with pytest.raises(ValueError, match="resampling boundary"):
         probe.reject_intervention_boundary(config, 990, 25)
     probe.reject_intervention_boundary(config, 29990, 25)  # Production intervention ends before 30k.
+
+
+@pytest.mark.parametrize("mutation,message", [
+    ({"stage": "unknown"}, "CE or fixed-weight study stage"),
+    ({"vocab_size": 128}, "pinned production GPT-2 vocabulary"),
+    ({"penalty_step": 0}, "fixed all-active step135000"),
+])
+def test_production_admission_rejects_wrong_study_identity(mutation, message):
+    config = get_config("arm2")
+    config["study"] = {"stage": "spectral_continuation", "vocab_size": 50257, "penalty_step": 135000}
+    config["study"].update(mutation)
+    with pytest.raises(ValueError, match=message):
+        probe.validate_probe_config(config)
+
+
+def test_continuation_requires_every_active_weight(monkeypatch):
+    config = get_config("arm2")
+    config["study"] = {"stage": "spectral_continuation", "vocab_size": 50257, "penalty_step": 135000}
+    monkeypatch.setattr(probe.training, "penalty_weights", lambda *args:
+                        {"manifold": .025, "fractional": 0., "hyper": .005, "dirichlet": .00055})
+    with pytest.raises(ValueError, match="fixed all-active step135000"):
+        probe.validate_probe_config(config)
 
 
 @pytest.fixture
@@ -222,12 +245,70 @@ def test_spectral_update_uses_fixed_weights_on_cpu(cpu_checkpoint, monkeypatch):
     assert values["loss"] >= values["ce"] and values["lr"] == 3e-5
 
 
-@pytest.mark.parametrize("kwargs", [{"warmup": 0}, {"steps": 0}, {"max_seconds": 121}, {"max_seconds": float("nan")}])
-def test_invalid_bounds_never_create_output(tmp_path, kwargs):
+@pytest.mark.parametrize("kwargs,message", [
+    ({"warmup": 0}, "positive integers"), ({"steps": 0}, "positive integers"),
+    ({"warmup": 1.5}, "positive integers"), ({"warmup": True}, "positive integers"),
+    ({"steps": 2.5}, "positive integers"), ({"max_seconds": 121}, "Cooperative limit"),
+    ({"max_seconds": float("nan")}, "Cooperative limit"),
+    ({"max_seconds": float("inf")}, "Cooperative limit"),
+    ({"max_seconds": 0}, "Cooperative limit"), ({"max_seconds": -1}, "Cooperative limit"),
+])
+def test_invalid_bounds_never_create_output(tmp_path, kwargs, message):
     output = tmp_path / "invalid"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=message):
         probe.run_probe(tmp_path / "missing.pt", output, **kwargs)
     assert not output.exists()
+
+
+def test_run_probe_real_validator_rejects_nonproduction_config(cpu_checkpoint, tmp_path, monkeypatch):
+    checkpoint, _, _, _ = cpu_checkpoint
+    monkeypatch.setattr(probe, "validate_probe_config", PRODUCTION_VALIDATOR)
+    output = tmp_path / "invalid_production_config"
+    with pytest.raises(ValueError, match="production M4/k0/microbatch8/accum8/context256"):
+        probe.run_probe(checkpoint, output, warmup=1, steps=1)
+    report = json.loads((output / "metrics.json").read_text())
+    assert not report["complete"] and report["status"] == "failed" and report["updates"] == []
+
+
+@pytest.mark.parametrize("failure", ["incomplete_state", "environment_drift", "pulses", "stripped"])
+def test_incomplete_or_intervened_resume_is_rejected(cpu_checkpoint, tmp_path, monkeypatch, failure):
+    checkpoint, _, _, _ = cpu_checkpoint
+    original = probe.training.load_checkpoint
+
+    def invalid_resume(*args, **kwargs):
+        step, pulses, stripped, fired, tokens = original(*args, **kwargs)
+        metadata = kwargs["resume_metadata"]
+        if failure == "incomplete_state":
+            metadata["resume_status"] = "legacy_partial"
+        elif failure == "environment_drift":
+            metadata["resume_limitations"] = ["changed environment"]
+        elif failure == "pulses":
+            pulses = [1]
+        else:
+            stripped = [1]
+        return step, pulses, stripped, fired, tokens
+
+    monkeypatch.setattr(probe.training, "load_checkpoint", invalid_resume)
+    output = tmp_path / failure
+    with pytest.raises(ValueError, match="complete checkpoint state in the same environment"):
+        probe.run_probe(checkpoint, output, warmup=1, steps=1)
+    report = json.loads((output / "metrics.json").read_text())
+    assert not report["complete"] and report["status"] == "failed" and report["updates"] == []
+
+
+def test_copied_checkpoint_and_config_outside_bound_run_are_rejected(cpu_checkpoint, tmp_path):
+    checkpoint, _, _, _ = cpu_checkpoint
+    copied_folder = tmp_path / "wrong_run"
+    copied_folder.mkdir()
+    copied = copied_folder / "last.pt"
+    copied.write_bytes(checkpoint.read_bytes())
+    (copied_folder / "study_config.json").write_bytes((checkpoint.parent / "study_config.json").read_bytes())
+    output = tmp_path / "wrong_checkpoint"
+    # read_config rejects the moved run before checkpoint deserialization.
+    with pytest.raises(ValueError, match="Study configuration must remain in its bound run directory"):
+        probe.run_probe(copied, output, warmup=1, steps=1)
+    report = json.loads((output / "metrics.json").read_text())
+    assert not report["complete"] and report["updates"] == []
 
 
 def test_hardware_rejection_persists_incomplete_receipt(tmp_path, monkeypatch):

@@ -24,6 +24,10 @@ is part of this stage. A copied local tokenizer is acceptable only if its bytes
 match this pin. The vocabulary size must be 50,257 and `<|endoftext|>` must map
 to 50,256. Padding and truncation are disabled, automatic special-token
 insertion is disabled, and one EOS is appended to every selected story.
+The prospective `gpt2_story_single_eos_u16le_v2` policy rejects any EOS already
+encoded from story content before appending the terminal EOS. See
+[`EOS_POLICY_REVIEW.md`](EOS_POLICY_REVIEW.md) for the historical bundle audit
+and the requirement to create a new bundle and configurations after this change.
 
 The four sorted JSONL row-reference streams are heap-merged in source-index,
 row-index order. Arrow IPC batches are read sequentially through PyArrow. Each
@@ -106,7 +110,7 @@ tokenization has run**; the output directory must not already exist:
 
 ```powershell
 $env:PYTHONPATH = (Resolve-Path src).Path
-.\.venv\Scripts\python.exe -m laplacian.study_tokens --partitions data/publication_v1/partitions --output data/publication_v1/tokens_v1
+.\.venv\Scripts\python.exe -m laplacian.study_tokens --partitions data/publication_v1/partitions --output data/publication_v1/tokens_v2
 ```
 
 API usage was checked through Context7 against the official

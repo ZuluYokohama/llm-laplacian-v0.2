@@ -143,7 +143,6 @@ def bound_fixture(tmp_path, monkeypatch):
         return copy.deepcopy(manifest)
 
     monkeypatch.setattr(study_train, "validate_bundle", validate)
-    monkeypatch.setattr(evaluation, "validate_bundle", validate)
     config = study_train.make_pretrain_config(manifest_path, "synthetic_parent", 0, steps=2)
     config.update(context=4, microbatch=1, accum=1, layers_1index=[1], dead_units=False)
     config_path = study_train.prepare_pretrain(config)
@@ -179,6 +178,17 @@ def test_bound_evaluation_receipt_and_immutable_output(bound_fixture):
     with pytest.raises(FileExistsError):
         evaluation.evaluate(bound_fixture)
     assert (bound_fixture.output / "metrics.json").read_bytes() == before
+
+
+def test_success_validates_token_bundle_once_at_start_and_once_at_completion(bound_fixture, monkeypatch):
+    validate = study_train.validate_bundle
+    calls = []
+    def counted(path):
+        calls.append(Path(path).resolve())
+        return validate(path)
+    monkeypatch.setattr(study_train, "validate_bundle", counted)
+    assert evaluation.evaluate(bound_fixture)["complete"]
+    assert calls == [bound_fixture.token_manifest.resolve()] * 2
 
 
 @pytest.mark.parametrize("mutation", ["checkpoint", "manifest", "tokens", "sources"])
@@ -264,6 +274,34 @@ def test_cuda_requires_budget_before_cuda_query(monkeypatch):
     monkeypatch.setattr(torch.cuda, "is_available", lambda: pytest.fail("CUDA touched before budget check"))
     with pytest.raises(RuntimeError, match="budget wrapper"):
         evaluation.device_for("cuda:0")
+
+
+@pytest.mark.parametrize("device, wrong_ledger", [("cuda:0", True), ("cuda:1", False)])
+def test_cuda_rejects_noncanonical_budget_or_nonzero_index_before_query(tmp_path, monkeypatch, device, wrong_ledger):
+    monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "synthetic-cpu-admission-test")
+    ledger = tmp_path / "other-ledger.jsonl" if wrong_ledger else evaluation.ROOT / "runs/publication_study/budget.jsonl"
+    monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(ledger))
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: pytest.fail("CUDA touched before budget/index rejection"))
+    monkeypatch.setattr(torch.cuda, "get_device_name", lambda *args: pytest.fail("CUDA name queried before budget/index rejection"))
+    with pytest.raises(RuntimeError) as caught:
+        evaluation.device_for(device)
+    assert str(caught.value) == "CUDA evaluation requires visible device0 and the canonical study budget wrapper"
+
+
+def test_cuda_rejects_non5070_using_cpu_fakes(monkeypatch):
+    monkeypatch.setenv("STUDY_BUDGET_RUN_ID", "synthetic-cpu-admission-test")
+    monkeypatch.setenv("STUDY_BUDGET_LEDGER", str(evaluation.ROOT / "runs/publication_study/budget.jsonl"))
+    queries = []
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    def fake_name(device):
+        queries.append(str(device))
+        return "NVIDIA GeForce RTX 4090"
+    monkeypatch.setattr(torch.cuda, "get_device_name", fake_name)
+    monkeypatch.setattr(torch.cuda, "_lazy_init", lambda: pytest.fail("Real CUDA initialization attempted"))
+    with pytest.raises(RuntimeError) as caught:
+        evaluation.device_for("cuda:0")
+    assert str(caught.value) == "The study CUDA evaluator requires the approved RTX5070"
+    assert queries == ["cuda:0"]
 
 
 def test_subset_is_explicit_and_test_subsets_rejected(bound_fixture):

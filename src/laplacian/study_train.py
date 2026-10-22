@@ -201,22 +201,34 @@ def validate_checkpoint(payload, config, *, model=None):
 def fork_checkpoint(parent_checkpoint, run_id, *, loss_implementation, steps=10000, baseline_loss_source=None):
     """Deserialize only a trusted local full checkpoint. This function runs no GPU work."""
     parent_checkpoint = Path(parent_checkpoint).resolve()
+    if parent_checkpoint.name != "last.pt":
+        raise ValueError("Parent must be its study run's final last.pt checkpoint")
     parent_record = file_record(parent_checkpoint)
-    payload = torch.load(parent_checkpoint, map_location="cpu", weights_only=False)
-    parent = payload.get("training_config", {})
-    validate_config(parent)
-    validate_checkpoint(payload, parent)
-    if parent["study"]["stage"] != "ce_pretrain" or payload["step"] != parent["steps"]:
-        raise ValueError("Fork requires the final checkpoint of a completed CE pretrain")
     metrics_path = parent_checkpoint.parent / "metrics.json"
+    metrics_record = file_record(metrics_path)
+    metrics_sidecar = file_record(metrics_path.with_name(metrics_path.name + ".sha256"))
     metrics = read_verified_metrics(metrics_path)
-    if (metrics.get("complete") is not True or metrics.get("steps") != payload["step"]
-            or config_hash(metrics.get("config", {})) != config_hash(parent)):
+    if metrics.get("complete") is not True:
         raise ValueError("Parent completion metrics do not match the checkpoint/configuration")
     if metrics.get("study", {}).get("final_checkpoint") != parent_record:
         raise ValueError("Parent final checkpoint bytes do not match completion metrics")
+    # Admit the JSON-bound run and exact bytes before unpickling a full state.
+    # Hashes do not authenticate an arbitrary untrusted pickle; input remains local/trusted.
+    parent = metrics.get("config", {})
+    validate_config(parent)
+    if parent["study"]["stage"] != "ce_pretrain" or metrics.get("steps") != parent["steps"]:
+        raise ValueError("Parent completion metrics do not match the checkpoint/configuration")
     if parent_checkpoint != folder_for(parent) / "last.pt":
         raise ValueError("Parent must be its study run's final last.pt checkpoint")
+    for record in (parent_record, metrics_record, metrics_sidecar):
+        check_record(record)
+    payload = torch.load(parent_checkpoint, map_location="cpu", weights_only=False)
+    validate_checkpoint(payload, parent)
+    if parent["study"]["stage"] != "ce_pretrain" or payload["step"] != parent["steps"]:
+        raise ValueError("Fork requires the final checkpoint of a completed CE pretrain")
+    if (metrics.get("complete") is not True or metrics.get("steps") != payload["step"]
+            or config_hash(metrics.get("config", {})) != config_hash(parent)):
+        raise ValueError("Parent completion metrics do not match the checkpoint/configuration")
     config = json.loads(json.dumps(parent))
     config.update(run_id=run_id, steps=int(steps), spectral=True, dead_units=False, lr=3e-5, min_lr=3e-5, warmup=0)
     config["study"].update(
@@ -226,12 +238,13 @@ def fork_checkpoint(parent_checkpoint, run_id, *, loss_implementation, steps=100
         lineage={"checkpoint": parent_record, "parent_step": payload["step"], "parent_run_id": parent["run_id"],
                  "parent_config_sha256": config_hash(parent), "parent_config": parent,
                  "parent_elapsed_seconds_total": payload["reproducibility"]["elapsed_seconds_total"],
-                 "parent_metrics": file_record(metrics_path), "fork_created_utc": datetime.now(timezone.utc).isoformat(),
+                 "parent_metrics": metrics_record, "fork_created_utc": datetime.now(timezone.utc).isoformat(),
                  "changed_fields": ["run_id", "steps", "spectral", "dead_units", "lr", "min_lr", "warmup", "study"],
                  "state_transfer": "model_optimizer_buffers_all_rng_flags_preserved; branch_step_reset_to_zero"},
     )
     validate_config(config)
-    check_record(parent_record)
+    for record in (parent_record, metrics_record, metrics_sidecar):
+        check_record(record)
     folder = folder_for(config)
     folder.mkdir(parents=True, exist_ok=False)
     # Preserve tensor states, Python/NumPy/CPU/CUDA RNGs and training flags verbatim.

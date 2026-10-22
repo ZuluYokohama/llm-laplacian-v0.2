@@ -232,6 +232,59 @@ def test_fork_rejects_mutated_completion_receipt_and_checkpoint(cpu_study):
         study.fork_checkpoint(parent_path, "bad_checkpoint", loss_implementation="optimized")
 
 
+@pytest.mark.parametrize("mutation,message", [
+    ("name", "final last.pt checkpoint"), ("sidecar", "sidecar digest"),
+    ("incomplete", "Parent completion metrics"), ("step", "Parent completion metrics"),
+    ("bytes", "checkpoint bytes"), ("directory", "final last.pt checkpoint"),
+    ("config", "Study fractional policy changed"),
+])
+def test_fork_checks_name_receipt_and_bytes_before_unpickling(cpu_study, monkeypatch, mutation, message):
+    parent = run_pretrain(cpu_study)
+    metrics_path = parent.parent / "metrics.json"
+    metrics = json.loads(metrics_path.read_text())
+    if mutation == "name":
+        parent = parent.with_name("weights_final.pt")
+    elif mutation == "sidecar":
+        metrics_path.write_text(metrics_path.read_text() + " ")
+    elif mutation in ("incomplete", "step"):
+        metrics["complete" if mutation == "incomplete" else "steps"] = False if mutation == "incomplete" else 999
+        study.write_metrics(metrics_path, metrics)
+    elif mutation == "config":
+        metrics["config"]["study"]["fractional_policy"] = {"invalid": "changed policy"}
+        study.write_metrics(metrics_path, metrics)  # Valid sidecar; config itself must fail before unpickling.
+    elif mutation == "bytes":
+        with parent.open("ab") as handle:
+            handle.write(b"changed checkpoint bytes")
+    else:
+        moved = parent.parent.with_name("moved_parent")
+        moved.mkdir()
+        copied = moved / "last.pt"
+        copied.write_bytes(parent.read_bytes())
+        parent = copied
+        metrics["study"]["final_checkpoint"] = study.file_record(parent)
+        study.write_metrics(moved / "metrics.json", metrics)
+    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: pytest.fail("Rejected parent was unpickled"))
+    with pytest.raises(ValueError, match=message):
+        study.fork_checkpoint(parent, "rejected_before_load", loss_implementation="optimized")
+    assert not (study.RUNS / "rejected_before_load").exists()
+
+
+def test_fork_rechecks_completion_identity_after_checkpoint_load(cpu_study, monkeypatch):
+    parent = run_pretrain(cpu_study)
+    metrics = parent.parent / "metrics.json"
+    original = torch.load
+
+    def changed_during_load(*args, **kwargs):
+        payload = original(*args, **kwargs)
+        metrics.write_text(metrics.read_text() + " ")
+        return payload
+
+    monkeypatch.setattr(torch, "load", changed_during_load)
+    with pytest.raises(ValueError, match="Study bound file changed"):
+        study.fork_checkpoint(parent, "changed_during_load", loss_implementation="optimized")
+    assert not (study.RUNS / "changed_during_load").exists()
+
+
 def test_resume_rejects_incomplete_flags_and_firing_window(cpu_study):
     parent_path = run_pretrain(cpu_study)
     parent = torch.load(parent_path, weights_only=False)

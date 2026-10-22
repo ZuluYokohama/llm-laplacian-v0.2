@@ -66,7 +66,7 @@ with that in-memory model.
 CPU tests exercise seeded initialization and all CPU RNG streams; a mocked CUDA
 test checks the device-state API without initializing a GPU. An actual tiny
 custom-model training loop runs 2,002 optimizer steps uninterrupted and again
-with interruption after the step-1,000 checkpoint, resuming through step 2,000.
+with interruption after the step-1,000 checkpoint, resuming through step 2,002.
 It forces units to qualify for the real dead-unit resampling function at the
 normal 1,000-step cadence, ensuring that RNG-dependent replacement occurs on
 both sides. Final model/buffers, optimizer state, data/global RNG, and firing

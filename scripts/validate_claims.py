@@ -82,7 +82,7 @@ def validate_manifest(manifest, root=ROOT, publication=False):
                 if not isinstance(payload, dict) or payload.get("complete") is not True:
                     raise ValueError(f"incomplete metrics: {key}")
                 side = path.with_name(path.name + ".sha256")
-                if not side.is_file() or side.read_text().strip() != file_hash(path, "lf_normalized_utf8"):
+                if not side.is_file() or side.read_text(encoding="utf-8").strip() != file_hash(path, "lf_normalized_utf8"):
                     raise ValueError(f"metrics sidecar mismatch: {key}")
             loaded[key] = payload
         elif spec.get("kind") == "file":
@@ -127,7 +127,7 @@ def validate_manifest(manifest, root=ROOT, publication=False):
         "artifact_count": len(artifacts), "claim_count": len(claims),
         "mode": "publication" if publication else "draft",
         "integrity_passed": True,
-        "limitation": "Checks bindings/integrity only; does not prove scientific support or audit unlisted prose.",
+        "limitation": "Host-side SHA-256 binding/integrity checks only; this report is not a Jovin isolated validation receipt. Does not prove scientific support or audit unlisted prose.",
     }
 
 

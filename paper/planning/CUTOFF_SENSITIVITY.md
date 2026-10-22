@@ -7,7 +7,7 @@ cutoff is statistically optimal or harmless for language-model quality.
 
 ## Actual-checkpoint pilot, interpreted narrowly
 
-The existing receipt
+The existing host diagnostic
 [`g0_cutoff_sensitivity_001/metrics.json`](../../runs/publication_study/g0_cutoff_sensitivity_001/metrics.json)
 records exponent 0.5, three sampled batches, and cutoffs \(10^{-5},10^{-4},10^{-3}\)
 at the same historical Arm 0 checkpoint. It uses BF16/TF32 production settings,
@@ -16,6 +16,10 @@ parameter gradients. It performs no optimizer updates. All nine cases were
 finite. Maximum relative component-value change from the default was
 \(3.1997\times10^{-5}\) (0.00320%); maximum relative parameter-gradient
 L2 change was 0.0031104 (0.311%).
+
+These host hashes identify artifact bytes; they are not process-isolated
+Jovin-chain receipts. The linked diagnostic artifacts are local and are not
+distributed in PR #2.
 
 Each of the fifteen inspected 8-by-8 graphs had only one eigenvalue below
 \(10^{-3}\), at roundoff scale, with minimum eigenvalues across graphs from
@@ -55,6 +59,8 @@ Its raw-byte SHA-256 is
 `49e573400a5709355b5e972e8958fdaae80ae1f6ef016b29d6522e975bd7ae41`;
 its LF-normalized sidecar is
 `a771ee121addc73d1f74b9b66ae2c3eb39ec140b7400bfaad48025e92d6d4d2e`.
+This is a host diagnostic with file-identity hashes, not a Jovin-chain receipt.
+The linked artifact is local and is not distributed in PR #2.
 
 The supplement uses float64, one deterministic 4-by-4 orthogonal basis, a
 fixed 4-by-3 feature matrix and a symmetric unit-Frobenius perturbation, all

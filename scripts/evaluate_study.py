@@ -26,7 +26,6 @@ from laplacian import study_train
 from laplacian.device import enforce_guard
 from laplacian.reproducibility import config_hash, environment
 from laplacian.runtime import write_metrics
-from laplacian.study_tokens import validate_bundle
 from laplacian.train import build_model
 
 POLICY = "story-isolated-context256-stride128-nll-v1-proposed"
@@ -176,7 +175,9 @@ def bound_inputs(config_path, checkpoint_path, manifest_path):
     config = study_train.read_config(config_path)
     if str(manifest_path) != config["study"]["token_manifest"]["path"]:
         raise ValueError("Evaluation token manifest differs from the training manifest")
-    manifest = validate_bundle(manifest_path)
+    # read_config already validated this exact bundle; the input records below
+    # recheck these bytes before use. Avoid hashing the whole corpus twice.
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     folder = study_train.folder_for(config)
     if checkpoint_path.parent != folder:
         raise ValueError("Evaluation checkpoint must belong to its bound study run")
@@ -277,7 +278,6 @@ def evaluate(args):
         for record in inputs:
             study_train.check_record(record)
         study_train.validate_config(config)
-        validate_bundle(args.token_manifest)
         if sources() != before_sources:
             raise ValueError("Evaluation source files changed during scoring")
         receipt.update(

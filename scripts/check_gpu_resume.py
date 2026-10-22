@@ -35,11 +35,16 @@ def source_hashes():
 
 
 # Capture before importing the local training implementation in the CLI process.
-IMPORTED_SOURCE_HASHES = source_hashes()
+try:
+    IMPORTED_SOURCE_HASHES = source_hashes()
+    IMPORTED_SOURCE_ERROR = None
+except Exception as exc:
+    # Preserve a CLI attempt receipt even when a prerequisite source is unreadable.
+    IMPORTED_SOURCE_HASHES = {}
+    IMPORTED_SOURCE_ERROR = f"{type(exc).__name__}: {exc}"
 
 from laplacian import train as training
 from laplacian.arms import get_config
-from laplacian.model import SpectralTransformer
 from laplacian.operators_torch import fractional_policy
 from laplacian.reproducibility import (
     config_hash, ensure_finite_state, environment, fresh_metadata, rng_state, seed_everything,
@@ -143,6 +148,10 @@ def gate_config(seed):
 
 
 def require_gpu():
+    ledger = os.environ.get("STUDY_BUDGET_LEDGER")
+    if (not os.environ.get("STUDY_BUDGET_RUN_ID", "").strip() or not ledger
+            or Path(ledger).resolve() != (ROOT / "runs/publication_study/budget.jsonl").resolve()):
+        raise RuntimeError("Gate requires the canonical study budget wrapper and run ID before CUDA access")
     device = torch.device("cuda:0")
     if not torch.cuda.is_available() or "5070" not in torch.cuda.get_device_name(device):
         raise RuntimeError("Gate requires the approved RTX 5070 as visible CUDA device zero")
@@ -153,8 +162,7 @@ def require_gpu():
 
 def new_training_state(config, device):
     seed_everything(config["seed"])
-    model = SpectralTransformer(vocab=128, m=4, k=0, d_model=256, n_layers=5,
-                                context=config["context"]).to(device)
+    model = training.build_model(config, config["gate_vocab"], device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"],
                                  betas=tuple(config["betas"]), weight_decay=config["weight_decay"])
     generator = torch.Generator(device="cpu").manual_seed(config["seed"])
@@ -162,7 +170,7 @@ def new_training_state(config, device):
 
 
 def synthetic_batch(config, generator, device):
-    tokens = torch.randint(0, 128, (config["microbatch"], config["context"]+1), generator=generator)
+    tokens = torch.randint(0, config["gate_vocab"], (config["microbatch"], config["context"]+1), generator=generator)
     digest = hashlib.sha256(tokens.numpy().tobytes()).hexdigest()
     return tokens[:, :-1].to(device), tokens[:, 1:].to(device), digest
 
@@ -243,7 +251,7 @@ def run_gate(output, *, seed=1729, max_seconds=60.0):
         "forced_resample_after": RESAMPLE_AFTER,
         "synthetic_data": {"vocab": 128, "microbatch": 8, "context": 16,
                            "sampling": "CPU generator randint, next-token targets; no external data"},
-        "model": {"layers": 5, "width": 256, "mlp_multiplier": 4},
+        "budget": {key: os.environ.get(key) for key in ("STUDY_BUDGET_RUN_ID", "STUDY_BUDGET_LEDGER")},
         "comparisons": [], "traces": {"uninterrupted": [], "resumed": []},
         "limitations": ["Single seed, four updates, one process/device; no cross-process or cross-hardware claim",
                         "No culling boundary; real dead-unit resampling is forced after update three",
@@ -256,6 +264,8 @@ def run_gate(output, *, seed=1729, max_seconds=60.0):
             raise TimeoutError("GPU resume gate exceeded its cooperative time limit; no success promoted")
 
     try:
+        if IMPORTED_SOURCE_ERROR is not None:
+            raise RuntimeError(f"Source snapshot failed before import: {IMPORTED_SOURCE_ERROR}")
         if source_hashes() != IMPORTED_SOURCE_HASHES:
             raise RuntimeError("Source changed after import; restart the gate from stable sources")
         device = require_gpu()
@@ -272,6 +282,7 @@ def run_gate(output, *, seed=1729, max_seconds=60.0):
             raise RuntimeError("The replay gate requires all four spectral penalties to be active")
         payload["stage"] = "uninterrupted"
         model, optimizer, generator = new_training_state(config, device)
+        payload["model"] = {"layers": len(model.blocks), "width": model.d_model, "mlp_multiplier": model.m}
         sums, tokens = run_updates(model, optimizer, generator, config, device, 0, TOTAL_UPDATES,
                                   output / "uninterrupted-last.pt", payload["traces"]["uninterrupted"],
                                   deadline, started)

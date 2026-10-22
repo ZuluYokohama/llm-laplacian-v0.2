@@ -11,9 +11,15 @@ import hashlib
 import argparse
 import json
 import os
+import math
+import queue as output_queue
 import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
+import codecs
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +42,12 @@ EXE = Path(os.environ.get("JOVIN_HARNESS_EXE") or shutil.which("jovin-harness") 
 RUNS = ROOT / "runs"
 LEDGER = RUNS / "harness-ledger.jsonl"
 DONE = RUNS / "QUEUE_DONE"
+# Queue-level limits cover the Docker preflight and whole reference script,
+# beyond internal per-operation timeouts. Timeout cleanup has its own bounds;
+# stopping a Windows WSL client does not attest remote Linux process cleanup.
+HARNESS_CHECK_TIMEOUT_S = 120
+REFERENCE_GATE_TIMEOUT_S = 900
+CHILD_REAP_TIMEOUT_S = 5
 
 
 def child_env():
@@ -118,7 +130,108 @@ def json_document(text):
     return json.loads(text[start : end + 1])
 
 
-def stream_command(command):
+def _stop_timed_out_tree(proc):
+    """Bound teardown itself; uncertain cleanup never turns a timeout into pass."""
+    if os.name != "nt":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            print("Timeout process-group cleanup is uncertain", flush=True)
+    # On Windows proc is the dedicated real-Python helper. Its sole Job Object
+    # handle closes on process death, which kills its contained descendants.
+    if proc.poll() is None:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+    try:
+        proc.wait(timeout=CHILD_REAP_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        print("Timeout cleanup is uncertain: direct child did not exit within reap grace", flush=True)
+
+
+def contained_queue_command(request):
+    """Internal Windows helper; establish containment before any requested child.
+
+    This entry point never runs ordinary queue main, WSL preflight or GPU checks.
+    It also owns the deadline if the calling queue disappears unexpectedly.
+    """
+    from study_budget import windows_job
+    _job = windows_job()  # Non-inheritable handle; keep alive until helper exit.
+    remaining = request["deadline_monotonic"] - time.monotonic()
+    if remaining <= 0:
+        return 124
+    child = subprocess.Popen(request["command"], stdin=subprocess.DEVNULL, shell=False)
+    try:
+        return child.wait(timeout=max(0, request["deadline_monotonic"] - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        return 124  # Returning exits helper; the OS closes its job and tree.
+
+
+def _bounded_stream(command, timeout_s):
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError("Command timeout must be finite and positive")
+    deadline = time.monotonic() + timeout_s
+    options = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
+    actual_command = command
+    if os.name == "nt":
+        # Bypass Windows venv launcher shims so Popen.pid identifies the actual
+        # process holding the Job Object, not a launcher waiting for that process.
+        executable = getattr(sys, "_base_executable", sys.executable)
+        actual_command = [executable, str(Path(__file__).resolve()), "_contained_queue_command",
+                          json.dumps({"command": command, "deadline_monotonic": deadline})]
+    proc = subprocess.Popen(actual_command, cwd=str(ROOT), env=child_env(), stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, bufsize=0, **options)
+    assert proc.stdout is not None
+    chunks = output_queue.Queue(maxsize=64)
+    finished = object()
+
+    def read_pipe():
+        try:
+            while True:
+                block = os.read(proc.stdout.fileno(), 4096)
+                if not block:
+                    break
+                chunks.put(block)
+        except OSError as exc:
+            chunks.put(exc)
+        finally:
+            chunks.put(finished)
+
+    reader = threading.Thread(target=read_pipe, name="queue-command-output", daemon=True)
+    reader.start()
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout_s)
+            try:
+                block = chunks.get(timeout=remaining)
+            except output_queue.Empty as exc:
+                raise subprocess.TimeoutExpired(command, timeout_s) from exc
+            if block is finished:
+                print(decoder.decode(b"", final=True), end="", flush=True)
+                return proc.wait(timeout=max(0, deadline - time.monotonic()))
+            if isinstance(block, OSError):
+                raise block
+            print(decoder.decode(block), end="", flush=True)
+    except BaseException:
+        _stop_timed_out_tree(proc)
+        raise
+    finally:
+        reader.join(timeout=1)
+        # A detached descendant can keep a pipe open. Never wait unboundedly for
+        # its reader; timeout already fails the gate and reports uncertain cleanup.
+        if not reader.is_alive():
+            proc.stdout.close()
+
+
+def stream_command(command, *, timeout_s=None):
+    if timeout_s is not None:
+        return _bounded_stream(command, timeout_s)
     proc = subprocess.Popen(
         command,
         cwd=str(ROOT),
@@ -196,41 +309,55 @@ def gpu_is_busy():
 def preflight_wsl():
     wsl = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wsl.exe"
     print(f"WSL initiate: {wsl} --distribution JovinHarness --exec docker version", flush=True)
-    code = stream_command([str(wsl), "--distribution", "JovinHarness", "--exec", "docker", "version"])
+    try:
+        code = stream_command([str(wsl), "--distribution", "JovinHarness", "--exec", "docker", "version"],
+                              timeout_s=HARNESS_CHECK_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"WSL Docker preflight timed out after {HARNESS_CHECK_TIMEOUT_S} seconds; gate not completed") from exc
     if code != 0:
         raise SystemExit(code)
     print(f"WSL initiate: {EXE} doctor", flush=True)
-    proc = subprocess.run([str(EXE), "doctor"], capture_output=True, text=True, env=child_env(), check=False)
+    try:
+        proc = subprocess.run([str(EXE), "doctor"], capture_output=True, text=True,
+                              env=child_env(), check=False, timeout=HARNESS_CHECK_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"jovin doctor timed out after {HARNESS_CHECK_TIMEOUT_S} seconds") from exc
     print(proc.stdout, flush=True)
     if proc.stderr:
         print(proc.stderr, flush=True)
     report = json_document(proc.stdout)
-    if proc.returncode != 0 or not report.get("ready"):
+    if proc.returncode != 0 or report.get("ready") is not True:
         raise SystemExit("jovin doctor is not ready")
     return verify_receipt_chain()
 
 
 def verify_receipt_chain():
     print(f"WSL initiate: {EXE} receipts verify", flush=True)
-    chain = subprocess.run(
-        [str(EXE), "receipts", "verify"],
-        capture_output=True,
-        text=True,
-        env=child_env(),
-        check=False,
-    )
+    try:
+        chain = subprocess.run(
+            [str(EXE), "receipts", "verify"],
+            capture_output=True,
+            text=True,
+            env=child_env(),
+            check=False,
+            timeout=HARNESS_CHECK_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"jovin receipts verify timed out after {HARNESS_CHECK_TIMEOUT_S} seconds") from exc
     print(chain.stdout, flush=True)
     if chain.stderr:
         print(chain.stderr, flush=True)
     receipt = json_document(chain.stdout)
-    if chain.returncode != 0 or not receipt.get("valid"):
+    if chain.returncode != 0 or receipt.get("valid") is not True:
         raise SystemExit("jovin receipt chain is not valid")
     return receipt.get("head_sha256"), receipt.get("count")
 
 
 GATE_SOURCES = {
-    "pytest": ("src/**/*.py", "scripts/**/*.py", "tests/**/*.py", "reference/operators/**/*.py", "reference/tests/**/*.py", "pyproject.toml"),
-    "verify_reference": ("reference/operators/**/*.py", "reference/tests/**/*.py", "scripts/verify_reference.ps1"),
+    "pytest": ("src/**/*.py", "scripts/**/*.py", "tests/**/*.py", "reference/operators/**/*.py", "reference/tests/**/*.py",
+               "pyproject.toml", "scripts/verify_reference.ps1", "paper/fetch_references.py", "paper/planning/FRACTIONAL_POLICY.md",
+               "runs/optimization_20261021/baseline_losses.py", "paper/planning/timing_schedule.json"),
+    "verify_reference": ("reference/operators/**/*.py", "reference/tests/**/*.py", "scripts/verify_reference.ps1", "scripts/study_budget.py"),
     "host_invariants": ("src/**/*.py", "reference/operators/fiedler.py"),
     "mcp_stdio": ("src/**/*.py",),
 }
@@ -521,7 +648,14 @@ def execute(item):
     if item["kind"] == "mcp":
         code = run_mcp()
     else:
-        code = stream_command(item["cmd"])
+        if item["id"] == "verify_reference":
+            try:
+                code = stream_command(item["cmd"], timeout_s=REFERENCE_GATE_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                print(f"FAILED reference gate timed out after {REFERENCE_GATE_TIMEOUT_S} seconds; no completion attested", flush=True)
+                return 124
+        else:
+            code = stream_command(item["cmd"])
         if code == 0 and item["kind"] == "gate":
             write_gate(item["id"], item["id"])
     if code == 0 and snapshot is not None:
@@ -605,4 +739,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["_contained_queue_command"]:
+        raise SystemExit(contained_queue_command(json.loads(sys.argv[2])))
     raise SystemExit(main())
