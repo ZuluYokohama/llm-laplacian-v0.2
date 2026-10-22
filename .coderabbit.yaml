@@ -30,6 +30,7 @@ reviews:
     - "tests/**"
     - "scripts/**"
     - "reference/**"
+    - "research/representation_audit/**"
     - "experiments/**"
     - "paper/**"
     - "pyproject.toml"

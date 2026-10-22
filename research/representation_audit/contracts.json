@@ -1,0 +1,78 @@
+{
+  "schema": "representation_contracts_v1",
+  "contracts": [
+    {
+      "id": "REP-EXAMPLE",
+      "name": "Pooled example graph",
+      "nodes": "Eight examples in one microbatch; accumulation does not enlarge this graph",
+      "edges": "Dense Gaussian affinity exp(-||z_i-z_j||^2/(2*tau^2)); self-loops retained",
+      "features": "Mean-pooled residual states, one B-by-D matrix per layer",
+      "normalization": "Symmetric degree-normalized Laplacian; current C1 fractional power policy",
+      "permitted_transformations": ["Example permutations", "Common orthogonal feature rotations"],
+      "noninvariances": ["Feature scaling at fixed tau changes affinities", "General invertible maps need not preserve Euclidean geometry"],
+      "intervention": "Change representation coordinates while preserving a specified linear readout, only where this factorization is valid",
+      "intended_task_relationship": "Hypothesis: graph geometry reflects useful representation structure; not assumed task semantics",
+      "diagnostic_prediction": "Orthogonal transforms preserve distances, affinity spectrum and quadratic energy; scaling need not",
+      "falsifying_control": "A noninvariant result outside the declared floating tolerance on a valid orthogonal fixture"
+    },
+    {
+      "id": "REP-TOKEN",
+      "name": "Token attention graph",
+      "nodes": "Token positions within each example",
+      "edges": "Head-mean attention, symmetrized, diagonal removed and clamped nonnegative",
+      "features": "Residual token states and embedding token states on the same attention graph",
+      "normalization": "Combinatorial Dirichlet energy divided by count of positive undirected edges",
+      "permitted_transformations": ["Feature orthogonal transformations with a fixed adjacency", "Simultaneous mathematical node/feature permutations with fixed graph correspondence"],
+      "noninvariances": ["Node permutation is not a symmetry of an entire causal language model", "Embedding/residual scaling changes energy", "Detached first-example spectral estimate has no universal eigenpair guarantee"],
+      "intervention": "Fixed-graph feature transformation; no claim that recomputing model attention preserves adjacency",
+      "intended_task_relationship": "The band is a heuristic; measured activity is not evidence of avoiding collapse or preserving language quality",
+      "diagnostic_prediction": "Orthogonal fixed-graph feature changes preserve energy; squared hinges retain frozen host definitions",
+      "falsifying_control": "Fixed-graph energy differs outside tolerance under a valid orthogonal transform"
+    },
+    {
+      "id": "REP-NEURON",
+      "name": "Neuron co-activation hypergraph",
+      "nodes": "MLP feature coordinates in the architecture's actual nonlinear basis",
+      "edges": "Batch-token events with incidence equal to activation > 0",
+      "features": "Activation matrix with extra vertex-degree scaling in the current objective",
+      "normalization": "Existing normalized hypergraph incidence plus existing feature degree scaling",
+      "permitted_transformations": ["Neuron permutations accompanied by readout permutation"],
+      "noninvariances": ["General rotations change positive-incidence support", "Arbitrary rotations do not commute with network nonlinearities", "Coordinate ablations are different interventions after a basis change"],
+      "intervention": "Remove a named coordinate at a specified linear feature/readout boundary; compare predictions under that intervention",
+      "intended_task_relationship": "Importance is conditional on representation and intervention; a graph score is not causal task importance",
+      "diagnostic_prediction": "Permutations preserve matched quantities; compensated orthogonal linear factorization preserves predictions but may reverse ablation rankings",
+      "falsifying_control": "Prediction changes under the exactly compensated linear factorization, or failure to preserve a valid permutation"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "REP-H1",
+      "statement": "Some training states may produce a numerically uninformative pooled graph at fixed tau",
+      "control": "Analytic identical, separated and mixed synthetic point clouds",
+      "measurements": ["Off-diagonal affinity saturation", "Centered pooled variance", "Normalized spectrum"],
+      "falsifying_outcome": "Observed states remain informative under the declared descriptive measures",
+      "scope": "One seed, training windows; no causal or generalization inference",
+      "next_decision": "Only propose a separately versioned graph-construction experiment if diagnostics show a concrete limitation"
+    },
+    {
+      "id": "REP-H2",
+      "statement": "A useful abstraction must distinguish invariant geometry from coordinate interventions",
+      "control": "Compensated orthogonal linear feature/readout factors and matched coordinate permutations",
+      "measurements": ["Prediction equality", "Gram equality", "Coordinate-ablation output changes", "Incidence dependence"],
+      "falsifying_outcome": "The control violates its declared equality outside tolerance or an asserted invariance fails",
+      "scope": "Finite linear-factorization controls, not entire-transformer symmetries",
+      "next_decision": "Require matched task controls before advancing a representation-aware pruning claim"
+    },
+    {
+      "id": "REP-H3",
+      "statement": "Training-time diagnostic trajectories may identify targets for a bounded follow-on experiment",
+      "control": "Fixed training microbatches reused at all four retained checkpoints",
+      "measurements": ["Effective rank", "Fractional energy", "Incidence density", "Token-band activity"],
+      "falsifying_outcome": "No diagnostically useful limitation or change is observed; preserve that result",
+      "scope": "Descriptive temporal association, not a controlled spectral-treatment effect",
+      "next_decision": "Prepare an experiment proposal with controls and costs; never schedule automatically"
+    }
+  ],
+  "merit_policy": "Separate mathematical correctness, observational relevance, resource cost and task effect; no combined merit score",
+  "confirmatory_claim_permitted": false
+}
